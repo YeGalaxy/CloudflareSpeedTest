@@ -8,25 +8,22 @@
 2. **SPEEDTEST_GUIDE.md** - 详细的测试指南（9700+ 字）
 3. **QUICKSTART.md** - 快速参考卡片
 
-## 🚀 快速开始（仅需3步）
+## 🚀 快速开始（仅需2步）
 
-### 第1步：构建项目
+### 第1步：运行自动化脚本
 ```bash
-cd /workspaces/CloudflareSpeedTest
-go build
-```
-
-### 第2步：运行自动化脚本
-```bash
+cd cfst-yx
 chmod +x cfst_pipeline.sh
 ./cfst_pipeline.sh
 ```
 
-### 第3步：查看结果
+### 第2步：查看结果
 脚本会自动生成含时间戳的结果目录，包含：
 - `01_tcp_candidates.csv` - TCP延迟筛选
 - `02_http_verified.csv` - HTTP服务验证  
 - `03_final_results.csv` - 最终排序结果
+
+**注意**：二进制文件 `CloudflareSpeedTest` 已预编译好，无需 Go 环境
 
 ## 📚 文档体系
 

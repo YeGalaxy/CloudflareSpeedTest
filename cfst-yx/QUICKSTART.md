@@ -36,14 +36,14 @@ HTTP验证 (3-4分钟)
 ### 场景2: 验证服务可用
 ```bash
 ./CloudflareSpeedTest -httping -cfcolo HKG,NRT,SIN,LAX \
-    -httping-code 200 -url https://cf.xiu2.xyz/url \
+    -httping-code 200 -url https://example.com/test-file \
     -n 15 -t 3 -tl 250 -p 10 -o result.csv
 ```
 
 ### 场景3: 完整性能测试
 ```bash
 ./CloudflareSpeedTest -httping -cfcolo HKG,NRT,SIN,LAX \
-    -httping-code 200 -url https://cf.xiu2.xyz/url \
+    -httping-code 200 -url https://example.com/test-file \
     -n 15 -t 4 -dn 10 -dt 12 -sl 5 -tl 300 -tlr 0.1 \
     -p 10 -o result.csv
 ```
@@ -71,13 +71,13 @@ HTTP验证 (3-4分钟)
 ## 🔄 使用之前
 
 ```bash
-# 1. 构建项目
-cd /workspaces/CloudflareSpeedTest
-go build
-
-# 2. 验证可执行文件
-ls -la CloudflareSpeedTest
+# 直接运行脚本即可，无需任何依赖
+cd cfst-yx
+chmod +x cfst_pipeline.sh
+./cfst_pipeline.sh
 ```
+
+**二进制文件已预编译好，无需 Go 环境！**
 
 ## 📁 输出文件
 
@@ -90,10 +90,10 @@ ls -la CloudflareSpeedTest
 
 | 问题 | 解决方案 |
 |------|----------|
-| 找不到二进制文件 | 运行 `go build` |
+| 找不到二进制文件 | 文件已在 cfst-yx 文件夹中，无需编译 |
 | 权限被拒绝 | 运行 `chmod +x cfst_pipeline.sh` |
 | 测试超时 | 检查网络、减少线程数 |
-| 找不到IP | 检查 `ip.txt` 或 `-ip` 参数 |
+| 找不到IP | 检查根目录的 `ip.txt` 或 `-ip` 参数 |
 
 ## 💡 提示
 

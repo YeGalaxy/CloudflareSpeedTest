@@ -272,16 +272,14 @@ crontab -e
 #### 方式1：使用自动化脚本（推荐）
 
 ```bash
-# 构建项目
-cd /workspaces/CloudflareSpeedTest
-go build
+cd cfst-yx
 
 # 执行联动测试脚本
 chmod +x cfst_pipeline.sh
 ./cfst_pipeline.sh
 
 # 带参数执行
-./cfst_pipeline.sh -n 20 -r HKG,NRT,SIN,LAX -u https://cf.xiu2.xyz/url
+./cfst_pipeline.sh -n 20 -r HKG,NRT,SIN,LAX -u https://example.com/test-file
 ```
 
 **脚本特点：**
@@ -289,6 +287,7 @@ chmod +x cfst_pipeline.sh
 - ✅ 自动提取和传递数据
 - ✅ 彩色输出和进度显示
 - ✅ 结果汇总和分析
+- ✅ 无需 Go 环境，二进制已预编译
 
 #### 方式2：手动逐步执行
 
@@ -302,7 +301,7 @@ CANDIDATES=$(tail -n +3 01_tcp_candidates.csv | awk -F',' '{print $1}' | head -2
 
 # 3. 阶段2: HTTP验证
 ./CloudflareSpeedTest -httping -cfcolo HKG,NRT,SIN,LAX \
-    -httping-code 200 -url https://cf.xiu2.xyz/url \
+    -httping-code 200 -url https://example.com/test-file \
     -n 15 -t 3 -dn 0 -dd -ip "$CANDIDATES" \
     -tl 250 -p 20 -o 02_http_verified.csv
 
@@ -311,7 +310,7 @@ VERIFIED=$(tail -n +3 02_http_verified.csv | awk -F',' '{print $1}' | head -10 |
 
 # 5. 阶段3: 性能评估
 ./CloudflareSpeedTest -httping -cfcolo HKG,NRT,SIN,LAX \
-    -httping-code 200 -url https://cf.xiu2.xyz/url \
+    -httping-code 200 -url https://example.com/test-file \
     -n 15 -t 4 -ip "$VERIFIED" \
     -dn 10 -dt 12 -sl 5 -tl 300 -tlr 0.1 \
     -p 10 -o 03_final_results.csv
