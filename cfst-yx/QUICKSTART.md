@@ -2,15 +2,23 @@
 
 ## 🚀 一键启动
 
+**Linux/Mac:**
 ```bash
-# 方式1: 使用自动脚本（推荐）
+cd cfst-yx
+chmod +x cfst_pipeline.sh
 ./cfst_pipeline.sh
+```
 
-# 方式2: 带参数
-./cfst_pipeline.sh -n 20 -r HKG,NRT
+**Windows (Git Bash/WSL):**
+```bash
+cd cfst-yx
+bash cfst_pipeline.sh
+```
 
-# 方式3: 自定义URL
-./cfst_pipeline.sh -u https://example.com/file -n 15
+**带参数：**
+```bash
+./cfst_pipeline.sh -n 20 -r HKG,NRT              # 指定线程和地区
+./cfst_pipeline.sh -u https://example.com/file   # 自定义URL
 ```
 
 ## 📊 四阶段流程（自动处理）

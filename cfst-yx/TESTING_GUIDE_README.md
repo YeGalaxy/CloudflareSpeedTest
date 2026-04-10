@@ -11,10 +11,18 @@
 ## 🚀 快速开始（仅需2步）
 
 ### 第1步：运行自动化脚本
+
+**Linux/Mac:**
 ```bash
 cd cfst-yx
 chmod +x cfst_pipeline.sh
 ./cfst_pipeline.sh
+```
+
+**Windows:**
+```bash
+cd cfst-yx
+bash cfst_pipeline.sh
 ```
 
 ### 第2步：查看结果
@@ -23,7 +31,10 @@ chmod +x cfst_pipeline.sh
 - `02_http_verified.csv` - HTTP服务验证  
 - `03_final_results.csv` - 最终排序结果
 
-**注意**：二进制文件 `CloudflareSpeedTest` 已预编译好，无需 Go 环境
+**注意**：
+- Windows 用户：需要安装 Git Bash 或 WSL
+- 二进制文件已预编译好 (CloudflareSpeedTest.exe for Windows, CloudflareSpeedTest for Linux)
+- 无需 Go 环境
 
 ## 📚 文档体系
 

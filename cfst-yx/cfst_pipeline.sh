@@ -9,7 +9,16 @@ set -e
 
 # ============= 配置参数 =============
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CFST_BIN="${SCRIPT_DIR}/CloudflareSpeedTest"
+
+# 自动检测操作系统并选择正确的二进制文件
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" || "$OSTYPE" == "cygwin" ]]; then
+    # Windows 环境
+    CFST_BIN="${SCRIPT_DIR}/CloudflareSpeedTest.exe"
+else
+    # Linux/Mac 环境
+    CFST_BIN="${SCRIPT_DIR}/CloudflareSpeedTest"
+fi
+
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 RESULT_DIR="${SCRIPT_DIR}/speedtest_results_${TIMESTAMP}"
 
@@ -46,9 +55,12 @@ log_error() {
 
 # 检查依赖
 check_dependencies() {
+    # 检查 CloudflareSpeedTest 二进制文件
     if [ ! -f "$CFST_BIN" ]; then
         log_error "找不到 CloudflareSpeedTest 二进制文件: $CFST_BIN"
-        log_info "请先执行: cd $SCRIPT_DIR && go build"
+        log_info "请确保以下文件之一存在:"
+        log_info "  - $(dirname $CFST_BIN)/CloudflareSpeedTest (Linux/Mac)"
+        log_info "  - $(dirname $CFST_BIN)/CloudflareSpeedTest.exe (Windows)"
         exit 1
     fi
     
@@ -283,10 +295,13 @@ print_summary() {
 main() {
     log_info "🚀 CloudflareSpeedTest 联动测试脚本"
     log_info "版本: 1.0 | 时间戳: $TIMESTAMP"
+    log_info "检测到操作系统: $(uname -s 2>/dev/null || echo 'Windows')"
     echo ""
     
     # 检查依赖
     check_dependencies
+    log_success "使用二进制文件: $CFST_BIN"
+    echo ""
     
     # 创建结果目录
     mkdir -p "$RESULT_DIR"
