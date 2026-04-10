@@ -6,15 +6,40 @@
 
 set -e
 
+# ===== 错误处理 =====
+trap 'log_error "脚本失败，行号: $LINENO"' ERR
+
 # ===== 配置 =====
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # 检测操作系统
-if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" || "$OSTYPE" == "cygwin" ]]; then
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "mingw" ]]; then
     CFST_BIN="${SCRIPT_DIR}/CloudflareSpeedTest.exe"
+    IS_WINDOWS=1
 else
     CFST_BIN="${SCRIPT_DIR}/CloudflareSpeedTest"
+    IS_WINDOWS=0
 fi
+
+# 验证二进制文件存在
+if [ ! -f "$CFST_BIN" ]; then
+    log_error "❌ 找不到二进制文件: $CFST_BIN"
+    log_error "请确保以下文件存在:"
+    log_error "  - CloudflareSpeedTest (Linux)"
+    log_error "  - CloudflareSpeedTest.exe (Windows)"
+    exit 1
+fi
+
+# 验证 IP 数据文件存在
+for ipfile in ip.txt ipv6.txt; do
+    if [ ! -f "${SCRIPT_DIR}/${ipfile}" ]; then
+        log_error "❌ 找不到数据文件: ${SCRIPT_DIR}/${ipfile}"
+        log_error "请确保以下文件在 cfst-yx 文件夹中:"
+        log_error "  - ip.txt"
+        log_error "  - ipv6.txt"
+        exit 1
+    fi
+done
 
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 RESULT_DIR="${SCRIPT_DIR}/speedtest_results_${TIMESTAMP}"
@@ -76,15 +101,28 @@ stage1() {
     log_info "线程=$THREADS, 测试次数=2, 延迟上限=200ms"
     echo ""
     
+    mkdir -p "$RESULT_DIR"
     local output="$RESULT_DIR/01_tcp_candidates.csv"
     
-    if ! "$CFST_BIN" -tp 443 -n "$THREADS" -t 2 -dn 0 -dd -tl 200 -p 50 -o "$output"; then
-        log_error "TCP测试失败，请检查网络连接或二进制文件"
+    log_info "运行命令: cd '$SCRIPT_DIR' && '$CFST_BIN' -tp 443 -n $THREADS -t 2 -dn 0 -dd -tl 200 -p 50 -o '$output'"
+    
+    # 必须从脚本所在目录运行二进制（因为二进制需要读取 ip.txt/ipv6.txt）
+    (cd "$SCRIPT_DIR" && "$CFST_BIN" -tp 443 -n "$THREADS" -t 2 -dn 0 -dd -tl 200 -p 50 -o "$output") || {
+        log_error "TCP 测试失败"
+        log_error "请检查:"
+        log_error "  1. 网络连接是否正常"
+        log_error "  2. ip.txt 和 ipv6.txt 文件是否存在"
+        log_error "  3. 二进制文件是否可执行"
+        exit 1
+    }
+    
+    if [ ! -f "$output" ]; then
+        log_error "TCP 测试没有生成输出文件: $output"
         exit 1
     fi
     
-    local count=$(tail -n +3 "$output" 2>/dev/null | wc -l)
-    log_success "TCP测试完成！找到 $count 个候选 IP"
+    local count=$(tail -n +3 "$output" 2>/dev/null | grep -c . || echo 0)
+    log_success "TCP 测试完成！找到 $count 个候选 IP"
     echo "$output"
 }
 
