@@ -1,8 +1,15 @@
 #!/bin/bash
 #
-# CloudflareSpeedTest 联动测试脚本
-# 功能：4阶段递进式测试，逐步筛选最佳CDN IP
-# 用法：./cfst_pipeline.sh [选项]
+# CloudflareSpeedTest 联动测试脚本 + 直接二进制调用
+# 功能：
+#   1. 四阶段递进式自动化测试
+#   2. 或直接调用二进制程序进行单个阶段测试
+#   3. 自动检测参数类型并路由到正确的处理方式
+#
+# 用法：
+#   ./cfst_pipeline.sh                    # 四阶段自动测试
+#   ./cfst_pipeline.sh -n 20 -r HKG,NRT  # 自定义参数的四阶段测试
+#   ./cfst_pipeline.sh -tp 443 -n 5 ...  # 直接调用二进制程序（自动检测）
 #
 
 set -e
@@ -12,10 +19,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # 自动检测操作系统并选择正确的二进制文件
 if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" || "$OSTYPE" == "cygwin" ]]; then
-    # Windows 环境
     CFST_BIN="${SCRIPT_DIR}/CloudflareSpeedTest.exe"
 else
-    # Linux/Mac 环境
     CFST_BIN="${SCRIPT_DIR}/CloudflareSpeedTest"
 fi
 
@@ -33,6 +38,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 log_info() {
@@ -51,16 +57,61 @@ log_error() {
     echo -e "${RED}❌ $1${NC}"
 }
 
+log_tip() {
+    echo -e "${CYAN}💡 $1${NC}"
+}
+
+# ============= 参数检测 =============
+
+# 检测是否是二进制程序的参数
+is_binary_param() {
+    local param="$1"
+    # 二进制程序特有的参数
+    case "$param" in
+        -tp|-t|-dn|-dt|-tl|-tll|-tlr|-sl|-p|-f|-ip|-o|-dd|-allip|-debug|-httping|-httping-code|-cfcolo)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+# 检查参数中是否包含二进制程序参数
+has_binary_params() {
+    for param in "$@"; do
+        if is_binary_param "$param"; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# ============= 直接调用二进制程序 =============
+
+run_binary_directly() {
+    log_info "检测到二进制程序参数，直接调用二进制程序..."
+    log_info "参数: $@"
+    echo ""
+    
+    if [ ! -f "$CFST_BIN" ]; then
+        log_error "找不到二进制文件: $CFST_BIN"
+        exit 1
+    fi
+    
+    # 直接调用二进制程序，传递所有参数
+    "$CFST_BIN" "$@"
+}
+
 # ============= 工具函数 =============
 
 # 检查依赖
 check_dependencies() {
-    # 检查 CloudflareSpeedTest 二进制文件
     if [ ! -f "$CFST_BIN" ]; then
         log_error "找不到 CloudflareSpeedTest 二进制文件: $CFST_BIN"
         log_info "请确保以下文件之一存在:"
-        log_info "  - $(dirname $CFST_BIN)/CloudflareSpeedTest (Linux/Mac)"
-        log_info "  - $(dirname $CFST_BIN)/CloudflareSpeedTest.exe (Windows)"
+        log_info "  - ${SCRIPT_DIR}/CloudflareSpeedTest (Linux/Mac)"
+        log_info "  - ${SCRIPT_DIR}/CloudflareSpeedTest.exe (Windows)"
         exit 1
     fi
     
@@ -82,7 +133,6 @@ extract_ips_from_csv() {
         return 1
     fi
     
-    # 跳过注释行和表头，提取第一列IP，去重并限制数量
     tail -n +3 "$csv_file" 2>/dev/null | grep -v "^#" | awk -F',' 'NF{print $1}' | head -n "$max_count" | paste -sd ',' - || echo ""
 }
 
@@ -260,9 +310,7 @@ print_summary() {
     
     log_info "📈 最终排序结果 (前5快):"
     echo ""
-    # 尝试解析CSV并美化输出
     tail -n +3 "$final_result" 2>/dev/null | grep -v "^#" | head -5 | while IFS=',' read -r ip delay loss_rate download_speed _; do
-        # 去除空格
         ip=$(echo "$ip" | xargs)
         delay=$(echo "$delay" | xargs)
         download_speed=$(echo "$download_speed" | xargs)
@@ -274,7 +322,6 @@ print_summary() {
     
     echo ""
     
-    # 提取最快IP
     local best_ip=$(tail -n +3 "$final_result" 2>/dev/null | grep -v "^#" | head -1 | awk -F',' '{print $1}' | xargs)
     if [ -n "$best_ip" ]; then
         log_success "🏆 最快IP: $best_ip"
@@ -294,7 +341,7 @@ print_summary() {
 
 main() {
     log_info "🚀 CloudflareSpeedTest 联动测试脚本"
-    log_info "版本: 1.0 | 时间戳: $TIMESTAMP"
+    log_info "版本: 2.0 | 时间戳: $TIMESTAMP"
     log_info "检测到操作系统: $(uname -s 2>/dev/null || echo 'Windows')"
     echo ""
     
@@ -339,17 +386,56 @@ usage() {
     cat << EOF
 用法: $0 [选项]
 
-选项:
-    -u, --url URL           指定测速地址 (默认: $TEST_URL)
-    -r, --regions REGIONS   指定地区码，逗号分隔 (默认: $TEST_REGIONS)
-    -n, --threads NUM       指定线程数 (默认: $THREADS)
+两种使用模式：
+
+【模式1】四阶段自动化测试（推荐）
+    $0                                      # 使用默认参数
+    $0 -n 20                               # 指定线程数
+    $0 -n 20 -r HKG,NRT                   # 指定线程数和地区
+    $0 -u https://example.com/file -n 10  # 自定义URL和线程
+
+脚本参数:
+    -u, --url URL           指定测速地址 (默认: https://cf.xiu2.xyz/url)
+    -r, --regions REGIONS   指定地区码，逗号分隔 (默认: HKG,NRT,SIN,LAX)
+    -n, --threads NUM       指定线程数 (默认: 15)
     -v, --verbose           显示详细输出
     -h, --help              显示此帮助信息
 
+【模式2】直接调用二进制程序（高级用户）
+    $0 -tp 443 -n 5 -t 1 -dd -o result.csv
+    $0 -httping -n 15 -dn 10 -dt 12 -o result.csv
+
+二进制程序参数 (将自动检测并调用):
+    -tp PORT                测速端口 (默认: 443)
+    -n THREADS              线程数 (默认: 200)
+    -t TIMES                单个IP测试次数 (默认: 4)
+    -dn COUNT               下载测试数量 (默认: 10)
+    -dt TIME                下载测试时间秒 (默认: 10)
+    -tl MS                  延迟上限(ms) (默认: 9999)
+    -tll MS                 延迟下限(ms) (默认: 0)
+    -tlr RATE               丢包率上限 (默认: 1.00)
+    -sl SPEED               下载速度下限(MB/s) (默认: 0)
+    -p COUNT                显示结果数量 (默认: 10)
+    -o FILE                 输出文件
+    -ip IPS                 指定IP (逗号分隔)
+    -httping                使用HTTP测试
+    -httping-code CODE      HTTP状态码
+    -cfcolo CODES           地区过滤
+    -dd                     禁用下载测试
+    -f FILE                 IP数据文件
+    -allip                  测试所有IP
+    -debug                  调试模式
+
 例子:
-    $0                                          # 使用默认参数
-    $0 -n 20 -r HKG,NRT                        # 使用20个线程，测试香港和东京
-    $0 -u https://example.com/file -n 10       # 自定义URL和线程数
+
+四阶段测试:
+    $0                      # 完整测试 (推荐)
+    $0 -n 5                 # 快速测试 (5分钟)
+    $0 -n 20 -r HKG,NRT    # 指定参数的完整测试
+
+直接二进制:
+    $0 -tp 443 -n 5 -t 1 -dd -o result.csv
+    $0 -httping -n 15 -dn 10 -o result.csv
 
 环境变量:
     TEST_URL                测速地址
@@ -362,33 +448,56 @@ EOF
 }
 
 # 解析命令行参数
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        -u|--url)
-            TEST_URL="$2"
-            shift 2
-            ;;
-        -r|--regions)
-            TEST_REGIONS="$2"
-            shift 2
-            ;;
-        -n|--threads)
-            THREADS="$2"
-            shift 2
-            ;;
-        -v|--verbose)
-            VERBOSE=1
-            shift
-            ;;
-        -h|--help)
-            usage
-            ;;
-        *)
-            log_error "未知参数: $1"
-            usage
-            ;;
-    esac
-done
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -u|--url)
+                TEST_URL="$2"
+                shift 2
+                ;;
+            -r|--regions)
+                TEST_REGIONS="$2"
+                shift 2
+                ;;
+            -n|--threads)
+                THREADS="$2"
+                shift 2
+                ;;
+            -v|--verbose)
+                VERBOSE=1
+                shift
+                ;;
+            -h|--help)
+                usage
+                ;;
+            *)
+                # 未知参数，可能是二进制程序的参数
+                return 1
+                ;;
+        esac
+    done
+    return 0
+}
 
-# 运行主函数
-main
+# 主入口
+if [ $# -eq 0 ]; then
+    # 无参数，执行四阶段测试
+    main
+else
+    # 检查是否是二进制程序的参数
+    if has_binary_params "$@"; then
+        # 直接调用二进制程序
+        run_binary_directly "$@"
+    else
+        # 尝试解析脚本参数
+        if parse_args "$@"; then
+            # 成功解析脚本参数，执行四阶段测试
+            main
+        else
+            # 解析失败，显示错误和帮助
+            log_error "未知参数: $1"
+            echo ""
+            usage
+        fi
+    fi
+fi

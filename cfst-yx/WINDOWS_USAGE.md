@@ -1,23 +1,35 @@
 # Windows Git Bash 使用指南
 
-## 📌 概述
+## 📌 概述 (v2.0 更新)
 
-在 Windows 上通过 Git Bash 使用 CloudflareSpeedTest 有两种主要方式：
+CloudflareSpeedTest 脚本现在支持**智能参数检测**！
 
-1. **自动化脚本** (`cfst_pipeline.sh`) - 推荐，自动完成四阶段测试
-2. **直接二进制程序** (`CloudflareSpeedTest.exe`) - 高级用户，完全灵活
+✨ **新特性**：
+- 自动识别参数类型，无需手动区分
+- 传入脚本参数 → 执行四阶段测试
+- 传入二进制参数 → 自动调用二进制程序
+- **不再混淆和出错！**
 
-**重要**：这两种方式使用**不同的参数**，不要混淆！
+在 Windows 上通过 Git Bash 使用 CloudflareSpeedTest：
+
+1. **四阶段自动化测试** (`bash cfst_pipeline.sh -n 20`) - 推荐，简单易用
+2. **直接二进制程序** (`bash cfst_pipeline.sh -tp 443 -n 5 ...`) - 高级用户，完全灵活
+3. **纯二进制程序** (`./CloudflareSpeedTest.exe -tp 443 -n 5 ...`) - 直接调用二进制
+
+**智能检测**：脚本会根据参数自动选择执行方式，你不需要担心用错模式！
 
 ---
 
-## 方式1：自动化脚本（推荐）✅
+## 方式1：四阶段自动化测试（推荐）✅
+
+**推荐使用！** 脚本自动检测是否传入了脚本参数还是二进制参数，并自动选择执行方式。
 
 ### 特点
 - ✅ 完整的四阶段递进式测试
 - ✅ 自动处理 IP 数据流转
 - ✅ 彩色进度显示和结果汇总
 - ✅ 超级简单，开箱即用
+- ✅ **v2.0 新增**：智能参数检测，无需区分参数类型
 
 ### 使用方法
 
@@ -40,7 +52,7 @@ bash cfst_pipeline.sh -u https://example.com/file -n 10
 bash cfst_pipeline.sh -n 5 -r HKG,NRT,SIN,LAX -u https://example.com/file
 ```
 
-### 可用参数
+### 脚本参数说明
 
 | 参数 | 说明 | 默认值 | 示例 |
 |------|------|--------|------|
