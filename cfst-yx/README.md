@@ -131,11 +131,16 @@ bash cfst_pipeline.sh -n 10
 
 ```
 cfst-yx/
-├─ cfst_pipeline.sh         主脚本
+├─ cfst_pipeline.sh         主脚本（v2.0）
 ├─ CloudflareSpeedTest      Linux 二进制
 ├─ CloudflareSpeedTest.exe  Windows 二进制
+├─ ip.txt                   IPv4 地址列表（二进制程序需要）
+├─ ipv6.txt                 IPv6 地址列表（二进制程序需要）
 └─ README.md                本文件
 ```
+
+⚠️ **重要**：请确保 `ip.txt` 和 `ipv6.txt` 文件在 cfst-yx/ 文件夹中，
+否则二进制程序无法运行！
 
 ## ✨ v2.0 核心改进
 
