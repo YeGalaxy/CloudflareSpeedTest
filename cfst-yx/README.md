@@ -63,6 +63,46 @@ bash cfst_pipeline.sh -h
 bash cfst_pipeline.sh -n 10
 ```
 
+### Q: 在 Windows 上显示『阶段1失败』怎么办？
+**A**: 按以下步骤排查：
+
+1. **确保文件完整**：检查 cfst-yx/ 文件夹中是否有这些文件
+   ```bash
+   ls -la CloudflareSpeedTest.exe ip.txt ipv6.txt
+   ```
+   如果缺少 `ip.txt` 或 `ipv6.txt`，需要从根目录复制：
+   ```bash
+   cd cfst-yx
+   cp ../ip.txt .
+   cp ../ipv6.txt .
+   ```
+
+2. **更新到最新版本**
+   ```bash
+   cd cfst-yx
+   git pull origin cfst-yx
+   ```
+
+3. **使用 bash 而不是 sh**
+   ```bash
+   # ✅ 正确
+   bash cfst_pipeline.sh -n 5
+   
+   # ❌ 错误
+   sh cfst_pipeline.sh -n 5
+   ```
+
+4. **检查二进制权限** (如果用 WSL)
+   ```bash
+   chmod +x CloudflareSpeedTest
+   chmod +x CloudflareSpeedTest.exe
+   ```
+
+5. **查看详细错误**（调试模式）
+   ```bash
+   bash -x cfst_pipeline.sh -n 3 2>&1 | head -100
+   ```
+
 ### Q: Linux/Mac 上怎么用？
 **A**: 直接运行：
 ```bash
