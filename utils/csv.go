@@ -86,7 +86,8 @@ func ExportCsv(data []CloudflareIPData) {
 		return
 	}
 	defer fp.Close()
-	w := csv.NewWriter(fp) //创建一个新的写入文件流
+	fp.Write([]byte{0xEF, 0xBB, 0xBF})
+	w := csv.NewWriter(fp)
 	_ = w.Write([]string{"IP 地址", "已发送", "已接收", "丢包率", "平均延迟", "下载速度(MB/s)", "地区码"})
 	_ = w.WriteAll(convertToString(data))
 	w.Flush()

@@ -1,13 +1,13 @@
 :: --------------------------------------------------------------
-::	��Ŀ: CloudflareSpeedTest �Զ����� 3Proxy
-::	�汾: 1.0.6
-::	����: XIU2
-::	��Ŀ: https://github.com/XIU2/CloudflareSpeedTest
+::	项目: CloudflareSpeedTest 自动更新 3Proxy
+::	版本: 1.0.6
+::	作者: XIU2
+::	项目: https://github.com/XIU2/CloudflareSpeedTest
 :: --------------------------------------------------------------
 @echo off
 Setlocal Enabledelayedexpansion
 
-::�ж��Ƿ��ѻ�ù���ԱȨ��
+::判断是否已获得管理员权限
 
 >nul 2>&1 "%SYSTEMROOT%\system32\cacls.exe" "%SYSTEMROOT%\system32\config\system" 
 
@@ -15,7 +15,7 @@ if '%errorlevel%' NEQ '0' (
     goto UACPrompt  
 ) else ( goto gotAdmin )  
 
-::д�� vbs �ű��Թ���Ա�������б��ű���bat��
+::写出 vbs 脚本以管理员身份运行本脚本（bat）
 
 :UACPrompt  
     echo Set UAC = CreateObject^("Shell.Application"^) > "%temp%\getadmin.vbs" 
@@ -23,7 +23,7 @@ if '%errorlevel%' NEQ '0' (
     "%temp%\getadmin.vbs" 
     exit /B  
 
-::�����ʱ vbs �ű����ڣ���ɾ��
+::如果临时 vbs 脚本存在，则删除
   
 :gotAdmin  
     if exist "%temp%\getadmin.vbs" ( del "%temp%\getadmin.vbs" )  
@@ -31,42 +31,42 @@ if '%errorlevel%' NEQ '0' (
     CD /D "%~dp0" 
 
 
-::�������ж��Ƿ��Ի�ù���ԱȨ�ޣ����û�о�ȥ��ȡ��������Ǳ��ű���Ҫ����
+::上面是判断是否以获得管理员权限，如果没有就去获取，下面才是本脚本主要代码
 
 
-::��� nowip_3proxy.txt �ļ������ڣ�˵���ǵ�һ�����иýű�
+::如果 nowip_3proxy.txt 文件不存在，说明是第一次运行该脚本
 if not exist "nowip_3proxy.txt" (
-    echo �ýű�������Ϊ CFST ���ٺ��ȡ��� IP ���滻 3Proxy �����ļ��е� Cloudflare CDN IP��
-    echo ���԰����� Cloudflare CDN IP ���ض�������� IP��ʵ��һ�����ݵļ�������ʹ�� Cloudflare CDN ����վ������Ҫһ�������������� Hosts �ˣ���
-    echo ʹ��ǰ�����Ķ���https://github.com/XIU2/CloudflareSpeedTest/discussions/71
+    echo 该脚本的作用为 CFST 测速后获取最快 IP 并替换 3Proxy 配置文件中的 Cloudflare CDN IP。
+    echo 可以把所有 Cloudflare CDN IP 都重定向至最快 IP，实现一劳永逸的加速所有使用 Cloudflare CDN 的网站（不需要一个个添加域名到 Hosts 了）。
+    echo 使用前请先阅读：https://github.com/XIU2/CloudflareSpeedTest/discussions/71
     echo.
-    set /p nowip="���뵱ǰ 3Proxy ����ʹ�õ� Cloudflare CDN IP ���س�������������Ҫ�ò��裩:"
+    set /p nowip="输入当前 3Proxy 正在使用的 Cloudflare CDN IP 并回车（后续不再需要该步骤）:"
     echo !nowip!>nowip_3proxy.txt
     echo.
 )  
 
-::�� nowip_3proxy.txt �ļ���ȡ��ǰʹ�õ� Cloudflare CDN IP
+::从 nowip_3proxy.txt 文件获取当前使用的 Cloudflare CDN IP
 set /p nowip=<nowip_3proxy.txt
-echo ��ʼ����...
+echo 开始测速...
 
 
-:: ��� RESET �Ǹ���Ҫ "�Ҳ������������� IP ��һֱѭ��������ȥ" ���ܵ���׼����
-:: �����Ҫ������ܾͰ����� 3 �� goto :STOP ��Ϊ goto :RESET ����
+:: 这个 RESET 是给需要 "找不到满足条件的 IP 就一直循环测速下去" 功能的人准备的
+:: 如果需要这个功能就把下面 3 个 goto :STOP 改为 goto :RESET 即可
 :RESET
 
 
-:: ��������Լ����ӡ��޸� CFST �����в�����echo.| ���������Զ��س��˳����򣨲�����Ҫ���� -p 0 �����ˣ�
+:: 这里可以自己添加、修改 CFST 的运行参数，echo.| 的作用是自动回车退出程序（不再需要加上 -p 0 参数了）
 echo.|cfst.exe -o "result_3proxy.txt"
 
 
-:: �жϽ���ļ��Ƿ���ڣ����������˵�����Ϊ 0
+:: 判断结果文件是否存在，如果不存在说明结果为 0
 if not exist result_3proxy.txt (
     echo.
-    echo CFST ���ٽ�� IP ����Ϊ 0���������沽��...
+    echo CFST 测速结果 IP 数量为 0，跳过下面步骤...
     goto :STOP
 )
 
-:: ��ȡ��һ�е���� IP
+:: 获取第一行的最快 IP
 for /f "skip=1 tokens=1 delims=," %%i in ('more result_3proxy.txt') do (
     SET bestip=%%i
     goto :END
@@ -74,49 +74,49 @@ for /f "skip=1 tokens=1 delims=," %%i in ('more result_3proxy.txt') do (
 
 :END
 
-:: �жϸոջ�ȡ����� IP �Ƿ�Ϊ�գ��Լ��Ƿ�;� IP һ��
+:: 判断刚刚获取的最快 IP 是否为空，以及是否和旧 IP 一样
 if "%bestip%"=="" (
     echo.
-    echo CFST ���ٽ�� IP ����Ϊ 0���������沽��...
+    echo CFST 测速结果 IP 数量为 0，跳过下面步骤...
     goto :STOP
 )
 if "%bestip%"=="%nowip%" (
     echo.
-    echo CFST ���ٽ�� IP ����Ϊ 0���������沽��...
+    echo CFST 测速结果 IP 数量为 0，跳过下面步骤...
     goto :STOP
 )
 
 
-:: ������δ����� "�Ҳ������������� IP ��һֱѭ��������ȥ" ����Ҫ�Ĵ���
-:: ���ǵ���ָ���������ٶ����ޣ���һ������ȫ�������� IP ��û�ҵ�ʱ��CFST �ͻ�������� IP ���
-:: ��˵���ָ�� -sl ����ʱ����Ҫ�Ƴ�������δ��뿪ͷ����� :: ð��ע�ͷ��������ļ������жϣ��������ز���������10 ������ô�����ֵ������Ϊ 11��
+:: 下面这段代码是 "找不到满足条件的 IP 就一直循环测速下去" 才需要的代码
+:: 考虑到当指定了下载速度下限，但一个满足全部条件的 IP 都没找到时，CFST 就会输出所有 IP 结果
+:: 因此当你指定 -sl 参数时，需要移除下面这段代码开头的这个 :: 冒号注释符，来做文件行数判断（比如下载测速数量：10 个，那么下面的值就设在为 11）
 ::set /a v=0
 ::for /f %%a in ('type result_3proxy.txt') do set /a v+=1
 ::if %v% GTR 11 (
 ::    echo.
-::    echo CFST ���ٽ��û���ҵ�һ����ȫ���������� IP�����²���...
+::    echo CFST 测速结果没有找到一个完全满足条件的 IP，重新测速...
 ::    goto :RESET
 ::)
 
 
 echo %bestip%>nowip_3proxy.txt
 echo.
-echo �� IP Ϊ %nowip%
-echo �� IP Ϊ %bestip%
+echo 旧 IP 为 %nowip%
+echo 新 IP 为 %bestip%
 
 
 
-:: �뽫�����ڵ� D:\Program Files\3Proxy ��Ϊ��� 3Proxy ��������Ŀ¼
+:: 请将引号内的 D:\Program Files\3Proxy 改为你的 3Proxy 程序所在目录
 CD /d "D:\Program Files\3Proxy"
-:: ��ȷ�����иýű�ǰ���Ѿ����Թ� 3Proxy �����������в�ʹ�ã�
+:: 请确保运行该脚本前，已经测试过 3Proxy 可以正常运行并使用！
 
 
 
 echo.
-echo ��ʼ���� 3proxy.cfg �ļ���3proxy.cfg_backup��...
+echo 开始备份 3proxy.cfg 文件（3proxy.cfg_backup）...
 copy 3proxy.cfg 3proxy.cfg_backup
 echo.
-echo ��ʼ�滻...
+echo 开始替换...
 (
     for /f "tokens=*" %%i in (3proxy.cfg_backup) do (
         set s=%%i
@@ -128,7 +128,7 @@ echo ��ʼ�滻...
 net stop 3proxy
 net start 3proxy
 
-echo ���...
+echo 完成...
 echo.
 :STOP
 pause 

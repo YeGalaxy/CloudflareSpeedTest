@@ -11,29 +11,33 @@ import (
 	"github.com/XIU2/CloudflareSpeedTest/utils"
 )
 
+// 常量定义
 const (
-	tcpConnectTimeout = time.Second * 1
-	maxRoutine        = 1000
-	defaultRoutines   = 200
-	defaultPort       = 443
-	defaultPingTimes  = 4
+	tcpConnectTimeout = time.Second * 1 // TCP连接超时时间
+	maxRoutine        = 1000            // 最大并发数
+	defaultRoutines   = 200             // 默认并发数
+	defaultPort       = 443             // 默认TCP端口
+	defaultPingTimes  = 4               // 默认Ping次数
 )
 
+// 全局变量
 var (
-	Routines      = defaultRoutines
-	TCPPort   int = defaultPort
-	PingTimes int = defaultPingTimes
+	Routines      = defaultRoutines  // 并发数
+	TCPPort   int = defaultPort      // TCP端口
+	PingTimes int = defaultPingTimes // Ping次数
 )
 
+// Ping 结构体，用于管理延迟测速任务
 type Ping struct {
-	wg      *sync.WaitGroup
-	m       *sync.Mutex
-	ips     []*net.IPAddr
-	csv     utils.PingDelaySet
-	control chan bool
-	bar     *utils.Bar
+	wg      *sync.WaitGroup    // 等待组，用于等待所有goroutine完成
+	m       *sync.Mutex        // 互斥锁，用于保护csv数据
+	ips     []*net.IPAddr      // IP地址列表
+	csv     utils.PingDelaySet // 测速结果集合
+	control chan bool          // 并发控制通道
+	bar     *utils.Bar         // 进度条
 }
 
+// checkPingDefault 检查并设置默认值
 func checkPingDefault() {
 	if Routines <= 0 {
 		Routines = defaultRoutines
@@ -46,6 +50,7 @@ func checkPingDefault() {
 	}
 }
 
+// NewPing 创建新的Ping实例
 func NewPing() *Ping {
 	checkPingDefault()
 	ips := loadIPRanges()
@@ -59,15 +64,18 @@ func NewPing() *Ping {
 	}
 }
 
+// Run 执行延迟测速
 func (p *Ping) Run() utils.PingDelaySet {
 	if len(p.ips) == 0 {
 		return p.csv
 	}
+	// 根据模式打印开始信息
 	if Httping {
 		utils.Cyan.Printf("开始延迟测速（模式：HTTP, 端口：%d, 范围：%v ~ %v ms, 丢包：%.2f)\n", TCPPort, utils.InputMinDelay.Milliseconds(), utils.InputMaxDelay.Milliseconds(), utils.InputMaxLossRate)
 	} else {
 		utils.Cyan.Printf("开始延迟测速（模式：TCP, 端口：%d, 范围：%v ~ %v ms, 丢包：%.2f)\n", TCPPort, utils.InputMinDelay.Milliseconds(), utils.InputMaxDelay.Milliseconds(), utils.InputMaxLossRate)
 	}
+	// 启动并发测速
 	for _, ip := range p.ips {
 		p.wg.Add(1)
 		p.control <- false
@@ -79,16 +87,19 @@ func (p *Ping) Run() utils.PingDelaySet {
 	return p.csv
 }
 
+// start 启动单个IP的测速goroutine
 func (p *Ping) start(ip *net.IPAddr) {
 	defer p.wg.Done()
 	p.tcpingHandler(ip)
 	<-p.control
 }
 
-// bool connectionSucceed float32 time
+// tcping 执行TCP连接测试
+// 返回: 连接是否成功, 连接耗时
 func (p *Ping) tcping(ip *net.IPAddr) (bool, time.Duration) {
 	startTime := time.Now()
 	var fullAddress string
+	// 根据IP类型格式化地址
 	if isIPv4(ip.String()) {
 		fullAddress = fmt.Sprintf("%s:%d", ip.String(), TCPPort)
 	} else {
@@ -103,7 +114,8 @@ func (p *Ping) tcping(ip *net.IPAddr) (bool, time.Duration) {
 	return true, duration
 }
 
-// pingReceived pingTotalTime
+// checkConnection 检查连接，根据模式选择HTTP或TCP测试
+// 返回: 成功次数, 总延迟, 数据中心代码
 func (p *Ping) checkConnection(ip *net.IPAddr) (recv int, totalDelay time.Duration, colo string) {
 	if Httping {
 		recv, totalDelay, colo = p.httping(ip)
@@ -119,6 +131,7 @@ func (p *Ping) checkConnection(ip *net.IPAddr) (recv int, totalDelay time.Durati
 	return
 }
 
+// appendIPData 添加测速数据到结果集（线程安全）
 func (p *Ping) appendIPData(data *utils.PingData) {
 	p.m.Lock()
 	defer p.m.Unlock()
@@ -127,7 +140,7 @@ func (p *Ping) appendIPData(data *utils.PingData) {
 	})
 }
 
-// handle tcping
+// tcpingHandler 处理单个IP的TCP测速
 func (p *Ping) tcpingHandler(ip *net.IPAddr) {
 	recv, totalDlay, colo := p.checkConnection(ip)
 	nowAble := len(p.csv)
@@ -138,6 +151,7 @@ func (p *Ping) tcpingHandler(ip *net.IPAddr) {
 	if recv == 0 {
 		return
 	}
+	// 计算平均延迟并保存数据
 	data := &utils.PingData{
 		IP:       ip,
 		Sended:   PingTimes,

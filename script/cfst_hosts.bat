@@ -1,13 +1,13 @@
 :: --------------------------------------------------------------
-::	ÏîÄ¿: CloudflareSpeedTest ×Ô¶¯¸üĞÂ Hosts
-::	°æ±¾: 1.0.5
-::	×÷Õß: XIU2
-::	ÏîÄ¿: https://github.com/XIU2/CloudflareSpeedTest
+::	é¡¹ç›®: CloudflareSpeedTest è‡ªåŠ¨æ›´æ–° Hosts
+::	ç‰ˆæœ¬: 1.0.5
+::	ä½œè€…: XIU2
+::	é¡¹ç›®: https://github.com/XIU2/CloudflareSpeedTest
 :: --------------------------------------------------------------
 @echo off
 Setlocal Enabledelayedexpansion
 
-::ÅĞ¶ÏÊÇ·ñÒÑ»ñµÃ¹ÜÀíÔ±È¨ÏŞ
+::åˆ¤æ–­æ˜¯å¦å·²è·å¾—ç®¡ç†å‘˜æƒé™
 
 >nul 2>&1 "%SYSTEMROOT%\system32\cacls.exe" "%SYSTEMROOT%\system32\config\system" 
 
@@ -15,7 +15,7 @@ if '%errorlevel%' NEQ '0' (
     goto UACPrompt  
 ) else ( goto gotAdmin )  
 
-::Ğ´³ö vbs ½Å±¾ÒÔ¹ÜÀíÔ±Éí·İÔËĞĞ±¾½Å±¾£¨bat£©
+::å†™å‡º vbs è„šæœ¬ä»¥ç®¡ç†å‘˜èº«ä»½è¿è¡Œæœ¬è„šæœ¬ï¼ˆbatï¼‰
 
 :UACPrompt  
     echo Set UAC = CreateObject^("Shell.Application"^) > "%temp%\getadmin.vbs" 
@@ -23,7 +23,7 @@ if '%errorlevel%' NEQ '0' (
     "%temp%\getadmin.vbs" 
     exit /B  
 
-::Èç¹ûÁÙÊ± vbs ½Å±¾´æÔÚ£¬ÔòÉ¾³ı
+::å¦‚æœä¸´æ—¶ vbs è„šæœ¬å­˜åœ¨ï¼Œåˆ™åˆ é™¤
   
 :gotAdmin  
     if exist "%temp%\getadmin.vbs" ( del "%temp%\getadmin.vbs" )  
@@ -31,42 +31,42 @@ if '%errorlevel%' NEQ '0' (
     CD /D "%~dp0" 
 
 
-::ÉÏÃæÊÇÅĞ¶ÏÊÇ·ñÒÔ»ñµÃ¹ÜÀíÔ±È¨ÏŞ£¬Èç¹ûÃ»ÓĞ¾ÍÈ¥»ñÈ¡£¬ÏÂÃæ²ÅÊÇ±¾½Å±¾Ö÷Òª´úÂë
+::ä¸Šé¢æ˜¯åˆ¤æ–­æ˜¯å¦ä»¥è·å¾—ç®¡ç†å‘˜æƒé™ï¼Œå¦‚æœæ²¡æœ‰å°±å»è·å–ï¼Œä¸‹é¢æ‰æ˜¯æœ¬è„šæœ¬ä¸»è¦ä»£ç 
 
 
-::Èç¹û nowip_hosts.txt ÎÄ¼ş²»´æÔÚ£¬ËµÃ÷ÊÇµÚÒ»´ÎÔËĞĞ¸Ã½Å±¾
+::å¦‚æœ nowip_hosts.txt æ–‡ä»¶ä¸å­˜åœ¨ï¼Œè¯´æ˜æ˜¯ç¬¬ä¸€æ¬¡è¿è¡Œè¯¥è„šæœ¬
 if not exist "nowip_hosts.txt" (
-    echo ¸Ã½Å±¾µÄ×÷ÓÃÎª CFST ²âËÙºó»ñÈ¡×î¿ì IP ²¢Ìæ»» Hosts ÖĞµÄ Cloudflare CDN IP¡£
-    echo Ê¹ÓÃÇ°ÇëÏÈÔÄ¶Á£ºhttps://github.com/XIU2/CloudflareSpeedTest/issues/42#issuecomment-768273768
+    echo è¯¥è„šæœ¬çš„ä½œç”¨ä¸º CFST æµ‹é€Ÿåè·å–æœ€å¿« IP å¹¶æ›¿æ¢ Hosts ä¸­çš„ Cloudflare CDN IPã€‚
+    echo ä½¿ç”¨å‰è¯·å…ˆé˜…è¯»ï¼šhttps://github.com/XIU2/CloudflareSpeedTest/issues/42#issuecomment-768273768
     echo.
-    echo µÚÒ»´ÎÊ¹ÓÃ£¬ÇëÏÈ½« Hosts ÖĞËùÓĞ Cloudflare CDN IP Í³Ò»¸ÄÎªÒ»¸ö IP¡£
-    set /p nowip="ÊäÈë¸Ã Cloudflare CDN IP ²¢»Ø³µ£¨ºóĞø²»ÔÙĞèÒª¸Ã²½Öè£©:"
+    echo ç¬¬ä¸€æ¬¡ä½¿ç”¨ï¼Œè¯·å…ˆå°† Hosts ä¸­æ‰€æœ‰ Cloudflare CDN IP ç»Ÿä¸€æ”¹ä¸ºä¸€ä¸ª IPã€‚
+    set /p nowip="è¾“å…¥è¯¥ Cloudflare CDN IP å¹¶å›è½¦ï¼ˆåç»­ä¸å†éœ€è¦è¯¥æ­¥éª¤ï¼‰:"
     echo !nowip!>nowip_hosts.txt
     echo.
 )  
 
-::´Ó nowip_hosts.txt ÎÄ¼ş»ñÈ¡µ±Ç° Hosts ÖĞÊ¹ÓÃµÄ Cloudflare CDN IP
+::ä» nowip_hosts.txt æ–‡ä»¶è·å–å½“å‰ Hosts ä¸­ä½¿ç”¨çš„ Cloudflare CDN IP
 set /p nowip=<nowip_hosts.txt
-echo ¿ªÊ¼²âËÙ...
+echo å¼€å§‹æµ‹é€Ÿ...
 
 
-:: Õâ¸ö RESET ÊÇ¸øĞèÒª "ÕÒ²»µ½Âú×ãÌõ¼şµÄ IP ¾ÍÒ»Ö±Ñ­»·²âËÙÏÂÈ¥" ¹¦ÄÜµÄÈË×¼±¸µÄ
-:: Èç¹ûĞèÒªÕâ¸ö¹¦ÄÜ¾Í°ÑÏÂÃæ 3 ¸ö goto :STOP ¸ÄÎª goto :RESET ¼´¿É
+:: è¿™ä¸ª RESET æ˜¯ç»™éœ€è¦ "æ‰¾ä¸åˆ°æ»¡è¶³æ¡ä»¶çš„ IP å°±ä¸€ç›´å¾ªç¯æµ‹é€Ÿä¸‹å»" åŠŸèƒ½çš„äººå‡†å¤‡çš„
+:: å¦‚æœéœ€è¦è¿™ä¸ªåŠŸèƒ½å°±æŠŠä¸‹é¢ 3 ä¸ª goto :STOP æ”¹ä¸º goto :RESET å³å¯
 :RESET
 
 
-:: ÕâÀï¿ÉÒÔ×Ô¼ºÌí¼Ó¡¢ĞŞ¸Ä CFST µÄÔËĞĞ²ÎÊı£¬echo.| µÄ×÷ÓÃÊÇ×Ô¶¯»Ø³µÍË³ö³ÌĞò£¨²»ÔÙĞèÒª¼ÓÉÏ -p 0 ²ÎÊıÁË£©
+:: è¿™é‡Œå¯ä»¥è‡ªå·±æ·»åŠ ã€ä¿®æ”¹ CFST çš„è¿è¡Œå‚æ•°ï¼Œecho.| çš„ä½œç”¨æ˜¯è‡ªåŠ¨å›è½¦é€€å‡ºç¨‹åºï¼ˆä¸å†éœ€è¦åŠ ä¸Š -p 0 å‚æ•°äº†ï¼‰
 echo.|cfst.exe -o "result_hosts.txt"
 
 
-:: ÅĞ¶Ï½á¹ûÎÄ¼şÊÇ·ñ´æÔÚ£¬Èç¹û²»´æÔÚËµÃ÷½á¹ûÎª 0
+:: åˆ¤æ–­ç»“æœæ–‡ä»¶æ˜¯å¦å­˜åœ¨ï¼Œå¦‚æœä¸å­˜åœ¨è¯´æ˜ç»“æœä¸º 0
 if not exist result_hosts.txt (
     echo.
-    echo CFST ²âËÙ½á¹û IP ÊıÁ¿Îª 0£¬Ìø¹ıÏÂÃæ²½Öè...
+    echo CFST æµ‹é€Ÿç»“æœ IP æ•°é‡ä¸º 0ï¼Œè·³è¿‡ä¸‹é¢æ­¥éª¤...
     goto :STOP
 )
 
-:: »ñÈ¡µÚÒ»ĞĞµÄ×î¿ì IP
+:: è·å–ç¬¬ä¸€è¡Œçš„æœ€å¿« IP
 for /f "skip=1 tokens=1 delims=," %%i in ('more result_hosts.txt') do (
     SET bestip=%%i
     goto :END
@@ -74,42 +74,42 @@ for /f "skip=1 tokens=1 delims=," %%i in ('more result_hosts.txt') do (
 
 :END
 
-:: ÅĞ¶Ï¸Õ¸Õ»ñÈ¡µÄ×î¿ì IP ÊÇ·ñÎª¿Õ£¬ÒÔ¼°ÊÇ·ñºÍ¾É IP Ò»Ñù
+:: åˆ¤æ–­åˆšåˆšè·å–çš„æœ€å¿« IP æ˜¯å¦ä¸ºç©ºï¼Œä»¥åŠæ˜¯å¦å’Œæ—§ IP ä¸€æ ·
 if "%bestip%"=="" (
     echo.
-    echo CFST ²âËÙ½á¹û IP ÊıÁ¿Îª 0£¬Ìø¹ıÏÂÃæ²½Öè...
+    echo CFST æµ‹é€Ÿç»“æœ IP æ•°é‡ä¸º 0ï¼Œè·³è¿‡ä¸‹é¢æ­¥éª¤...
     goto :STOP
 )
 if "%bestip%"=="%nowip%" (
     echo.
-    echo CFST ²âËÙ½á¹û IP ÊıÁ¿Îª 0£¬Ìø¹ıÏÂÃæ²½Öè...
+    echo CFST æµ‹é€Ÿç»“æœ IP æ•°é‡ä¸º 0ï¼Œè·³è¿‡ä¸‹é¢æ­¥éª¤...
     goto :STOP
 )
 
 
-:: ÏÂÃæÕâ¶Î´úÂëÊÇ "ÕÒ²»µ½Âú×ãÌõ¼şµÄ IP ¾ÍÒ»Ö±Ñ­»·²âËÙÏÂÈ¥" ²ÅĞèÒªµÄ´úÂë
-:: ¿¼ÂÇµ½µ±Ö¸¶¨ÁËÏÂÔØËÙ¶ÈÏÂÏŞ£¬µ«Ò»¸öÂú×ãÈ«²¿Ìõ¼şµÄ IP ¶¼Ã»ÕÒµ½Ê±£¬CFST ¾Í»áÊä³öËùÓĞ IP ½á¹û
-:: Òò´Ëµ±ÄãÖ¸¶¨ -sl ²ÎÊıÊ±£¬ĞèÒªÒÆ³ıÏÂÃæÕâ¶Î´úÂë¿ªÍ·µÄÕâ¸ö :: Ã°ºÅ×¢ÊÍ·û£¬À´×öÎÄ¼şĞĞÊıÅĞ¶Ï£¨±ÈÈçÏÂÔØ²âËÙÊıÁ¿£º10 ¸ö£¬ÄÇÃ´ÏÂÃæµÄÖµ¾ÍÉèÔÚÎª 11£©
+:: ä¸‹é¢è¿™æ®µä»£ç æ˜¯ "æ‰¾ä¸åˆ°æ»¡è¶³æ¡ä»¶çš„ IP å°±ä¸€ç›´å¾ªç¯æµ‹é€Ÿä¸‹å»" æ‰éœ€è¦çš„ä»£ç 
+:: è€ƒè™‘åˆ°å½“æŒ‡å®šäº†ä¸‹è½½é€Ÿåº¦ä¸‹é™ï¼Œä½†ä¸€ä¸ªæ»¡è¶³å…¨éƒ¨æ¡ä»¶çš„ IP éƒ½æ²¡æ‰¾åˆ°æ—¶ï¼ŒCFST å°±ä¼šè¾“å‡ºæ‰€æœ‰ IP ç»“æœ
+:: å› æ­¤å½“ä½ æŒ‡å®š -sl å‚æ•°æ—¶ï¼Œéœ€è¦ç§»é™¤ä¸‹é¢è¿™æ®µä»£ç å¼€å¤´çš„è¿™ä¸ª :: å†’å·æ³¨é‡Šç¬¦ï¼Œæ¥åšæ–‡ä»¶è¡Œæ•°åˆ¤æ–­ï¼ˆæ¯”å¦‚ä¸‹è½½æµ‹é€Ÿæ•°é‡ï¼š10 ä¸ªï¼Œé‚£ä¹ˆä¸‹é¢çš„å€¼å°±è®¾åœ¨ä¸º 11ï¼‰
 ::set /a v=0
 ::for /f %%a in ('type result_hosts.txt') do set /a v+=1
 ::if %v% GTR 11 (
 ::    echo.
-::    echo CFST ²âËÙ½á¹ûÃ»ÓĞÕÒµ½Ò»¸öÍêÈ«Âú×ãÌõ¼şµÄ IP£¬ÖØĞÂ²âËÙ...
+::    echo CFST æµ‹é€Ÿç»“æœæ²¡æœ‰æ‰¾åˆ°ä¸€ä¸ªå®Œå…¨æ»¡è¶³æ¡ä»¶çš„ IPï¼Œé‡æ–°æµ‹é€Ÿ...
 ::    goto :RESET
 ::)
 
 
 echo %bestip%>nowip_hosts.txt
 echo.
-echo ¾É IP Îª %nowip%
-echo ĞÂ IP Îª %bestip%
+echo æ—§ IP ä¸º %nowip%
+echo æ–° IP ä¸º %bestip%
 
 CD /d "C:\Windows\System32\drivers\etc"
 echo.
-echo ¿ªÊ¼±¸·İ Hosts ÎÄ¼ş£¨hosts_backup£©...
+echo å¼€å§‹å¤‡ä»½ Hosts æ–‡ä»¶ï¼ˆhosts_backupï¼‰...
 copy hosts hosts_backup
 echo.
-echo ¿ªÊ¼Ìæ»»...
+echo å¼€å§‹æ›¿æ¢...
 (
     for /f "tokens=*" %%i in (hosts_backup) do (
         set s=%%i
@@ -118,7 +118,7 @@ echo ¿ªÊ¼Ìæ»»...
         )
 )>hosts
 
-echo Íê³É...
+echo å®Œæˆ...
 echo.
 :STOP
 pause 

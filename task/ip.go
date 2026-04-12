@@ -11,24 +11,30 @@ import (
 	"time"
 )
 
+// 默认输入文件名
 const defaultInputFile = "ip.txt"
 
 var (
-	// TestAll test all ip
+	// TestAll 是否测试所有 IP
 	TestAll = false
-	// IPFile is the filename of IP Rangs
+	// IPFile IP 段文件名
 	IPFile = defaultInputFile
+	// IPText 从参数传入的 IP 段文本
 	IPText string
 )
 
+// InitRandSeed 初始化随机数种子
 func InitRandSeed() {
 	rand.Seed(time.Now().UnixNano())
 }
 
+// isIPv4 判断是否为 IPv4 地址
 func isIPv4(ip string) bool {
 	return strings.Contains(ip, ".")
 }
 
+// randIPEndWith 生成随机 IP 末尾数字
+// 对于 /32 这种单独的 IP，返回 0
 func randIPEndWith(num byte) byte {
 	if num == 0 { // 对于 /32 这种单独的 IP
 		return byte(0)
@@ -36,20 +42,22 @@ func randIPEndWith(num byte) byte {
 	return byte(rand.Intn(int(num)))
 }
 
+// IPRanges IP 段结构体，用于存储和管理 IP 地址范围
 type IPRanges struct {
-	ips     []*net.IPAddr
-	mask    string
-	firstIP net.IP
-	ipNet   *net.IPNet
+	ips     []*net.IPAddr // IP 地址列表
+	mask    string        // 子网掩码
+	firstIP net.IP        // 第一个 IP 地址
+	ipNet   *net.IPNet    // IP 网络
 }
 
+// newIPRanges 创建新的 IPRanges 实例
 func newIPRanges() *IPRanges {
 	return &IPRanges{
 		ips: make([]*net.IPAddr, 0),
 	}
 }
 
-// 如果是单独 IP 则加上子网掩码，反之则获取子网掩码(r.mask)
+// fixIP 修复 IP 格式，如果是单独 IP 则加上子网掩码，反之则获取子网掩码(r.mask)
 func (r *IPRanges) fixIP(ip string) string {
 	// 如果不含有 '/' 则代表不是 IP 段，而是一个单独的 IP，因此需要加上 /32 /128 子网掩码
 	if i := strings.IndexByte(ip, '/'); i < 0 {
@@ -65,7 +73,7 @@ func (r *IPRanges) fixIP(ip string) string {
 	return ip
 }
 
-// 解析 IP 段，获得 IP、IP 范围、子网掩码
+// parseCIDR 解析 IP 段，获得 IP、IP 范围、子网掩码
 func (r *IPRanges) parseCIDR(ip string) {
 	var err error
 	if r.firstIP, r.ipNet, err = net.ParseCIDR(r.fixIP(ip)); err != nil {
@@ -73,15 +81,17 @@ func (r *IPRanges) parseCIDR(ip string) {
 	}
 }
 
+// appendIPv4 添加 IPv4 地址到列表
 func (r *IPRanges) appendIPv4(d byte) {
 	r.appendIP(net.IPv4(r.firstIP[12], r.firstIP[13], r.firstIP[14], d))
 }
 
+// appendIP 添加 IP 地址到列表
 func (r *IPRanges) appendIP(ip net.IP) {
 	r.ips = append(r.ips, &net.IPAddr{IP: ip})
 }
 
-// 返回第四段 ip 的最小值及可用数目
+// getIPRange 返回第四段 ip 的最小值及可用数目
 func (r *IPRanges) getIPRange() (minIP, hosts byte) {
 	minIP = r.firstIP[15] & r.ipNet.Mask[3] // IP 第四段最小值
 
@@ -99,6 +109,7 @@ func (r *IPRanges) getIPRange() (minIP, hosts byte) {
 	return
 }
 
+// chooseIPv4 选择 IPv4 地址（单个/随机/全部）
 func (r *IPRanges) chooseIPv4() {
 	if r.mask == "/32" { // 单个 IP 则无需随机，直接加入自身即可
 		r.appendIP(r.firstIP)
@@ -123,6 +134,7 @@ func (r *IPRanges) chooseIPv4() {
 	}
 }
 
+// chooseIPv6 选择 IPv6 地址（单个/随机）
 func (r *IPRanges) chooseIPv6() {
 	if r.mask == "/128" { // 单个 IP 则无需随机，直接加入自身即可
 		r.appendIP(r.firstIP)
@@ -130,7 +142,7 @@ func (r *IPRanges) chooseIPv6() {
 		var tempIP uint8                  // 临时变量，用于记录前一位的值
 		for r.ipNet.Contains(r.firstIP) { // 只要该 IP 没有超出 IP 网段范围，就继续循环随机
 			r.firstIP[15] = randIPEndWith(255) // 随机 IP 的最后一段
-			r.firstIP[14] = randIPEndWith(255) // 随机 IP 的最后一段
+			r.firstIP[14] = randIPEndWith(255) // 随机 IP 的倒数第二段
 
 			targetIP := make([]byte, len(r.firstIP))
 			copy(targetIP, r.firstIP)
@@ -147,6 +159,7 @@ func (r *IPRanges) chooseIPv6() {
 	}
 }
 
+// loadIPRanges 加载 IP 段数据，支持从参数或文件读取
 func loadIPRanges() []*net.IPAddr {
 	ranges := newIPRanges()
 	if IPText != "" { // 从参数中获取 IP 段数据
