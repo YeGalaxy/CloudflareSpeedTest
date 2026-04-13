@@ -1,0 +1,81 @@
+FROM golang:1.18-alpine AS builder
+
+ARG VERSION=v2.3.4
+ARG TARGETARCH=amd64
+ARG GOPROXY=https://goproxy.cn,direct
+
+ENV GOPROXY=${GOPROXY}
+
+WORKDIR /build
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY main.go ./
+COPY task/ ./task/
+COPY utils/ ./utils/
+COPY report/ ./report/
+COPY scheduler/ ./scheduler/
+
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
+    go build -ldflags="-s -w -X main.version=${VERSION}" \
+    -o cfst .
+
+FROM alpine:latest
+
+RUN apk add --no-cache ca-certificates tzdata curl bash \
+    && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
+    && echo "Asia/Shanghai" > /etc/timezone \
+    && apk del tzdata
+
+WORKDIR /app
+
+COPY --from=builder /build/cfst ./
+COPY ip.txt ./
+COPY ipv6.txt ./
+COPY script/ ./script/
+
+RUN chmod +x ./cfst
+
+VOLUME ["/app/cfst"]
+
+ENV CFST_N=200 \
+    CFST_T=4 \
+    CFST_DN=10 \
+    CFST_DT=10 \
+    CFST_TP=443 \
+    CFST_URL="https://cf.xiu2.xyz/url" \
+    CFST_TL=9999 \
+    CFST_TLL=0 \
+    CFST_TLR=1.0 \
+    CFST_SL=0 \
+    CFST_DD=false \
+    CFST_HTTPING=false \
+    CFST_HTTPING_CODE=0 \
+    CFST_CFCOLO="" \
+    CFST_IP="" \
+    CFST_ALLIP=false \
+    CFST_P=10 \
+    CFST_O="result.csv" \
+    CFST_F="ip.txt" \
+    CFST_DEBUG=false \
+    CFST_REPORT="" \
+    CFST_REPORT_ONLY=false \
+    CFST_REPORT_FILE="" \
+    CFST_REPORT_PORT=443 \
+    CFST_REPORT_WORKER_DOMAIN="" \
+    CFST_REPORT_UUID="" \
+    CFST_REPORT_GITHUB_TOKEN="" \
+    CFST_REPORT_GITHUB_OWNER="" \
+    CFST_REPORT_GITHUB_REPO="" \
+    CFST_REPORT_GITHUB_BRANCH="main" \
+    CFST_REPORT_GITHUB_PATH="preferred_ips.txt" \
+    CFST_CRON="" \
+    CFST_CRON_ONCE=false \
+    TZ="Asia/Shanghai"
+
+COPY entrypoint.sh ./
+RUN chmod +x ./entrypoint.sh \
+    && sed -i 's/\r$//' ./entrypoint.sh
+
+ENTRYPOINT ["./entrypoint.sh"]

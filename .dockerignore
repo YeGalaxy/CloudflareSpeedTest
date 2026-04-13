@@ -1,0 +1,16 @@
+cfst-yx/
+.git/
+.github/
+.vscode/
+dist/
+Releases/
+*.exe
+*.csv
+.gitattributes
+LICENSE
+README.md
+项目结构.md
+build.bat
+.dockerignore
+Dockerfile
+docker-compose.yml

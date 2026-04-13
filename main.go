@@ -9,12 +9,34 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/XIU2/CloudflareSpeedTest/report"
+	"github.com/XIU2/CloudflareSpeedTest/scheduler"
 	"github.com/XIU2/CloudflareSpeedTest/task"
 	"github.com/XIU2/CloudflareSpeedTest/utils"
 )
 
 var (
 	version, versionNew string
+)
+
+var (
+	reportTarget       string
+	reportWorkerDomain string
+	reportUUID         string
+	reportGitHubToken  string
+	reportGitHubOwner  string
+	reportGitHubRepo   string
+	reportGitHubBranch string
+	reportGitHubPath   string
+	reportConfigPath   string
+	reportOnly         bool
+	reportFile         string
+	reportPort         int
+	schedulerMode      bool
+	schedulerList      bool
+	schedulerDelete    string
+	schedulerCron      string
+	schedulerTaskName  string
 )
 
 func init() {
@@ -71,6 +93,44 @@ https://github.com/XIU2/CloudflareSpeedTest
     -debug
         调试输出模式；会在一些非预期情况下输出更多日志以便判断原因；(默认 关闭)
 
+结果上报参数：
+    -report cloudflare
+        上报目标；测速完成后上报结果，支持 cloudflare（Workers API）和 github；(默认 空 不上报)
+    -report-only
+        仅上报模式；跳过测速，直接上报已有的结果文件；(配合 -report 使用)
+    -report-file result.csv
+        指定上报的结果文件路径；(配合 -report-only 使用，默认 result.csv)
+    -report-port 443
+        指定上报时使用的端口；(配合 -report-only 使用，默认 443)
+    -report-worker-domain example.com
+        Cloudflare Workers 域名；(配合 -report cloudflare 使用)
+    -report-uuid your-uuid
+        Cloudflare Workers UUID；(配合 -report cloudflare 使用)
+    -report-github-token ghp_xxxx
+        GitHub Token；(配合 -report github 使用)
+    -report-github-owner username
+        GitHub 仓库所有者；(配合 -report github 使用)
+    -report-github-owner repo
+        GitHub 仓库名称；(配合 -report github 使用)
+    -report-github-branch main
+        GitHub 分支；(默认 main)
+    -report-github-path preferred_ips.txt
+        GitHub 文件路径；(默认 preferred_ips.txt)
+    -report-config .cloudflare_speedtest_config.json
+        上报配置文件路径；(默认 .cloudflare_speedtest_config.json)
+
+定时任务参数：
+    -scheduler
+        设置定时任务；交互式创建定时任务；
+    -scheduler-list
+        列出定时任务；显示当前已配置的所有定时任务；
+    -scheduler-delete task_name
+        删除定时任务；删除指定名称的定时任务；
+    -scheduler-cron "0 2 * * *"
+        定时任务表达式；直接指定 cron 表达式创建定时任务（非交互式）；
+    -scheduler-task-name cfst_daily
+        定时任务名称；配合 -scheduler-cron 使用指定任务名称；
+
     -v
         打印程序版本 + 检查版本更新
     -h
@@ -104,6 +164,25 @@ https://github.com/XIU2/CloudflareSpeedTest
 
 	flag.BoolVar(&utils.Debug, "debug", false, "调试输出模式")
 
+	flag.StringVar(&reportTarget, "report", "", "上报目标")
+	flag.BoolVar(&reportOnly, "report-only", false, "仅上报模式")
+	flag.StringVar(&reportFile, "report-file", "", "上报结果文件")
+	flag.IntVar(&reportPort, "report-port", 443, "上报端口")
+	flag.StringVar(&reportWorkerDomain, "report-worker-domain", "", "Workers 域名")
+	flag.StringVar(&reportUUID, "report-uuid", "", "Workers UUID")
+	flag.StringVar(&reportGitHubToken, "report-github-token", "", "GitHub Token")
+	flag.StringVar(&reportGitHubOwner, "report-github-owner", "", "GitHub 所有者")
+	flag.StringVar(&reportGitHubRepo, "report-github-repo", "", "GitHub 仓库")
+	flag.StringVar(&reportGitHubBranch, "report-github-branch", "main", "GitHub 分支")
+	flag.StringVar(&reportGitHubPath, "report-github-path", "preferred_ips.txt", "GitHub 路径")
+	flag.StringVar(&reportConfigPath, "report-config", ".cloudflare_speedtest_config.json", "上报配置文件")
+
+	flag.BoolVar(&schedulerMode, "scheduler", false, "设置定时任务")
+	flag.BoolVar(&schedulerList, "scheduler-list", false, "列出定时任务")
+	flag.StringVar(&schedulerDelete, "scheduler-delete", "", "删除定时任务")
+	flag.StringVar(&schedulerCron, "scheduler-cron", "", "cron 表达式")
+	flag.StringVar(&schedulerTaskName, "scheduler-task-name", "", "定时任务名称")
+
 	flag.BoolVar(&printVersion, "v", false, "打印程序版本")
 	flag.Usage = func() { fmt.Print(help) }
 	flag.Parse()
@@ -128,34 +207,60 @@ https://github.com/XIU2/CloudflareSpeedTest
 		}
 		os.Exit(0)
 	}
+
+	if schedulerList {
+		handleSchedulerList()
+		os.Exit(0)
+	}
+
+	if schedulerDelete != "" {
+		handleSchedulerDelete()
+		os.Exit(0)
+	}
+
+	if schedulerCron != "" {
+		handleSchedulerCron()
+		os.Exit(0)
+	}
+
+	if schedulerMode {
+		handleSchedulerInteractive()
+		os.Exit(0)
+	}
+
+	if reportOnly {
+		handleReportOnly()
+		os.Exit(0)
+	}
 }
 
 func main() {
-	task.InitRandSeed() // 置随机数种子
+	task.InitRandSeed()
 
 	fmt.Printf("# XIU2/CloudflareSpeedTest %s \n\n", version)
 
-	// 开始延迟测速 + 过滤延迟/丢包
 	pingData := task.NewPing().Run().FilterDelay().FilterLossRate()
-	// 开始下载测速
 	speedData := task.TestDownloadSpeed(pingData)
-	utils.ExportCsv(speedData) // 输出文件
-	speedData.Print()          // 打印结果
-	endPrint()                 // 根据情况选择退出方式（针对 Windows）
+	utils.ExportCsv(speedData)
+	speedData.Print()
+
+	if reportTarget != "" {
+		handleReport()
+	}
+
+	endPrint()
 }
 
-// 根据情况选择退出方式（针对 Windows）
 func endPrint() {
-	if utils.NoPrintResult() { // 如果不需要打印测速结果，则直接退出
+	if utils.NoPrintResult() {
 		return
 	}
-	if runtime.GOOS == "windows" { // 如果是 Windows 系统，则需要按下 回车键 或 Ctrl+C 退出（避免通过双击运行时，测速完毕后直接关闭）
+	if runtime.GOOS == "windows" {
 		fmt.Printf("按下 回车键 或 Ctrl+C 退出。")
 		fmt.Scanln()
 	}
 }
 
-// 检查更新
 func checkUpdate() {
 	timeout := 10 * time.Second
 	client := http.Client{Timeout: timeout}
@@ -163,14 +268,336 @@ func checkUpdate() {
 	if err != nil {
 		return
 	}
-	// 读取资源数据 body: []byte
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return
 	}
-	// 关闭资源流
 	defer res.Body.Close()
 	if string(body) != version {
 		versionNew = string(body)
 	}
+}
+
+func handleReport() {
+	cfg := buildReportConfig()
+
+	if reportConfigPath != "" {
+		savedCfg, err := report.LoadConfig(reportConfigPath)
+		if err == nil {
+			if cfg.WorkerDomain == "" {
+				cfg.WorkerDomain = savedCfg.WorkerDomain
+			}
+			if cfg.UUID == "" {
+				cfg.UUID = savedCfg.UUID
+			}
+			if cfg.GitHubToken == "" {
+				cfg.GitHubToken = savedCfg.GitHubToken
+			}
+			if cfg.GitHubOwner == "" {
+				cfg.GitHubOwner = savedCfg.GitHubOwner
+			}
+			if cfg.GitHubRepo == "" {
+				cfg.GitHubRepo = savedCfg.GitHubRepo
+			}
+			if cfg.GitHubBranch == "" || cfg.GitHubBranch == "main" {
+				cfg.GitHubBranch = savedCfg.GitHubBranch
+			}
+			if cfg.GitHubPath == "" || cfg.GitHubPath == "preferred_ips.txt" {
+				cfg.GitHubPath = savedCfg.GitHubPath
+			}
+		}
+	}
+
+	if err := report.SaveConfig(reportConfigPath, cfg); err != nil {
+		utils.Yellow.Printf("[上报] 保存配置文件失败: %v\n", err)
+	}
+
+	if err := report.ReportResults(utils.Output, cfg, reportTarget, task.TCPPort); err != nil {
+		utils.Red.Printf("[上报] 上报失败: %v\n", err)
+	}
+}
+
+func buildReportConfig() *report.Config {
+	return &report.Config{
+		WorkerDomain: reportWorkerDomain,
+		UUID:         reportUUID,
+		GitHubToken:  reportGitHubToken,
+		GitHubOwner:  reportGitHubOwner,
+		GitHubRepo:   reportGitHubRepo,
+		GitHubBranch: reportGitHubBranch,
+		GitHubPath:   reportGitHubPath,
+	}
+}
+
+func handleReportOnly() {
+	if reportTarget == "" {
+		utils.Red.Printf("[上报] 错误: 仅上报模式需要指定 -report 参数\n")
+		os.Exit(1)
+	}
+
+	resultPath := reportFile
+	if resultPath == "" {
+		resultPath = utils.Output
+	}
+
+	port := reportPort
+	if port <= 0 {
+		port = 443
+	}
+
+	fmt.Printf("# CloudflareSpeedTest 仅上报模式 \n\n")
+	utils.Cyan.Printf("[上报] 结果文件: %s\n", resultPath)
+	utils.Cyan.Printf("[上报] 上报目标: %s\n", reportTarget)
+	utils.Cyan.Printf("[上报] 上报端口: %d\n", port)
+
+	cfg := buildReportConfig()
+
+	if reportConfigPath != "" {
+		savedCfg, err := report.LoadConfig(reportConfigPath)
+		if err == nil {
+			if cfg.WorkerDomain == "" {
+				cfg.WorkerDomain = savedCfg.WorkerDomain
+			}
+			if cfg.UUID == "" {
+				cfg.UUID = savedCfg.UUID
+			}
+			if cfg.GitHubToken == "" {
+				cfg.GitHubToken = savedCfg.GitHubToken
+			}
+			if cfg.GitHubOwner == "" {
+				cfg.GitHubOwner = savedCfg.GitHubOwner
+			}
+			if cfg.GitHubRepo == "" {
+				cfg.GitHubRepo = savedCfg.GitHubRepo
+			}
+			if cfg.GitHubBranch == "" || cfg.GitHubBranch == "main" {
+				cfg.GitHubBranch = savedCfg.GitHubBranch
+			}
+			if cfg.GitHubPath == "" || cfg.GitHubPath == "preferred_ips.txt" {
+				cfg.GitHubPath = savedCfg.GitHubPath
+			}
+		}
+	}
+
+	if err := report.SaveConfig(reportConfigPath, cfg); err != nil {
+		utils.Yellow.Printf("[上报] 保存配置文件失败: %v\n", err)
+	}
+
+	if err := report.ReportResults(resultPath, cfg, reportTarget, port); err != nil {
+		utils.Red.Printf("[上报] 上报失败: %v\n", err)
+		os.Exit(1)
+	}
+
+	utils.Green.Printf("[上报] 上报完成！\n")
+}
+
+func handleSchedulerList() {
+	tm := scheduler.NewTaskManager()
+	tasks := tm.ListTasks()
+	scheduler.PrintTaskList(tasks)
+}
+
+func handleSchedulerDelete() {
+	tm := scheduler.NewTaskManager()
+	if err := tm.DeleteTask(schedulerDelete); err != nil {
+		utils.Red.Printf("[定时任务] 删除失败: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func handleSchedulerCron() {
+	tm := scheduler.NewTaskManager()
+	taskName := schedulerTaskName
+	if taskName == "" {
+		taskName = fmt.Sprintf("cfst_auto_%d", time.Now().Unix())
+	}
+
+	command := scheduler.BuildFullCommand(buildCurrentArgs())
+
+	if runtime.GOOS == "windows" {
+		if err := tm.CreateTask(taskName, scheduler.TaskTypeDaily, schedulerCron, command); err != nil {
+			utils.Red.Printf("[定时任务] 创建失败: %v\n", err)
+			os.Exit(1)
+		}
+	} else {
+		if err := tm.CreateTask(taskName, scheduler.TaskTypeCron, schedulerCron, command); err != nil {
+			utils.Red.Printf("[定时任务] 创建失败: %v\n", err)
+			os.Exit(1)
+		}
+	}
+}
+
+func handleSchedulerInteractive() {
+	tm := scheduler.NewTaskManager()
+	tasks := tm.ListTasks()
+	scheduler.PrintTaskList(tasks)
+
+	fmt.Println()
+	fmt.Println("请选择操作：")
+	fmt.Println("  1. 创建新的定时任务")
+	fmt.Println("  2. 删除定时任务")
+	fmt.Println("  3. 退出")
+
+	var choice int
+	fmt.Print("请输入选项 (1-3): ")
+	fmt.Scanln(&choice)
+
+	switch choice {
+	case 1:
+		createTaskInteractive(tm)
+	case 2:
+		deleteTaskInteractive(tm)
+	case 3:
+		return
+	default:
+		utils.Yellow.Println("[定时任务] 无效选项")
+	}
+}
+
+func createTaskInteractive(tm *scheduler.TaskManager) {
+	taskName := ""
+	fmt.Print("请输入任务名称: ")
+	fmt.Scanln(&taskName)
+	if taskName == "" {
+		taskName = fmt.Sprintf("cfst_task_%d", time.Now().Unix())
+	}
+
+	command := scheduler.BuildFullCommand(buildCurrentArgs())
+
+	if runtime.GOOS == "windows" {
+		fmt.Println("请选择调度类型：")
+		fmt.Println("  1. 每天 (指定时间)")
+		fmt.Println("  2. 每小时")
+		fmt.Println("  3. 每周 (指定星期和时间)")
+
+		var scheduleType int
+		fmt.Print("请输入选项 (1-3): ")
+		fmt.Scanln(&scheduleType)
+
+		var schedule string
+		var taskType scheduler.TaskType
+
+		switch scheduleType {
+		case 1:
+			taskType = scheduler.TaskTypeDaily
+			fmt.Print("请输入执行时间 (HH:MM, 如 02:00): ")
+			fmt.Scanln(&schedule)
+		case 2:
+			taskType = scheduler.TaskTypeHourly
+			schedule = "01:00"
+		case 3:
+			taskType = scheduler.TaskTypeWeekly
+			fmt.Print("请输入星期和时间 (如 MONDAY 02:00): ")
+			fmt.Scanln(&schedule)
+		default:
+			utils.Yellow.Println("[定时任务] 无效选项")
+			return
+		}
+
+		if err := tm.CreateTask(taskName, taskType, schedule, command); err != nil {
+			utils.Red.Printf("[定时任务] 创建失败: %v\n", err)
+		}
+	} else {
+		fmt.Println("请输入 cron 表达式 (5个字段: 分 时 日 月 周)")
+		fmt.Println("  示例: 0 2 * * *  (每天凌晨2点)")
+		fmt.Println("  示例: 30 4 * * 1 (每周一凌晨4:30)")
+		fmt.Println("  示例: 0 */6 * * * (每6小时)")
+
+		var cronExpr string
+		fmt.Print("cron 表达式: ")
+		fmt.Scanln(&cronExpr)
+
+		if err := tm.CreateTask(taskName, scheduler.TaskTypeCron, cronExpr, command); err != nil {
+			utils.Red.Printf("[定时任务] 创建失败: %v\n", err)
+		}
+	}
+}
+
+func deleteTaskInteractive(tm *scheduler.TaskManager) {
+	tasks := tm.ListTasks()
+	if len(tasks) == 0 {
+		utils.Yellow.Println("[定时任务] 当前没有可删除的任务")
+		return
+	}
+
+	scheduler.PrintTaskList(tasks)
+
+	var idx int
+	fmt.Print("请输入要删除的任务编号: ")
+	fmt.Scanln(&idx)
+
+	if idx < 1 || idx > len(tasks) {
+		utils.Yellow.Println("[定时任务] 无效编号")
+		return
+	}
+
+	if err := tm.DeleteTask(tasks[idx-1].Name); err != nil {
+		utils.Red.Printf("[定时任务] 删除失败: %v\n", err)
+	}
+}
+
+func buildCurrentArgs() []string {
+	var args []string
+
+	args = append(args, fmt.Sprintf("-n %d", task.Routines))
+	args = append(args, fmt.Sprintf("-t %d", task.PingTimes))
+	args = append(args, fmt.Sprintf("-dn %d", task.TestCount))
+	args = append(args, fmt.Sprintf("-tp %d", task.TCPPort))
+	args = append(args, fmt.Sprintf("-url %s", task.URL))
+	args = append(args, fmt.Sprintf("-tl %d", utils.InputMaxDelay.Milliseconds()))
+	args = append(args, fmt.Sprintf("-tll %d", utils.InputMinDelay.Milliseconds()))
+	args = append(args, fmt.Sprintf("-tlr %.2f", utils.InputMaxLossRate))
+	args = append(args, fmt.Sprintf("-sl %.2f", task.MinSpeed))
+	args = append(args, fmt.Sprintf("-p %d", utils.PrintNum))
+	args = append(args, fmt.Sprintf("-o %s", utils.Output))
+	args = append(args, fmt.Sprintf("-f %s", task.IPFile))
+
+	if task.Disable {
+		args = append(args, "-dd")
+	}
+	if task.Httping {
+		args = append(args, "-httping")
+	}
+	if task.TestAll {
+		args = append(args, "-allip")
+	}
+	if utils.Debug {
+		args = append(args, "-debug")
+	}
+	if task.HttpingStatusCode > 0 {
+		args = append(args, fmt.Sprintf("-httping-code %d", task.HttpingStatusCode))
+	}
+	if task.HttpingCFColo != "" {
+		args = append(args, fmt.Sprintf("-cfcolo %s", task.HttpingCFColo))
+	}
+	if task.IPText != "" {
+		args = append(args, fmt.Sprintf("-ip %s", task.IPText))
+	}
+
+	if reportTarget != "" {
+		args = append(args, fmt.Sprintf("-report %s", reportTarget))
+		if reportWorkerDomain != "" {
+			args = append(args, fmt.Sprintf("-report-worker-domain %s", reportWorkerDomain))
+		}
+		if reportUUID != "" {
+			args = append(args, fmt.Sprintf("-report-uuid %s", reportUUID))
+		}
+		if reportGitHubToken != "" {
+			args = append(args, fmt.Sprintf("-report-github-token %s", reportGitHubToken))
+		}
+		if reportGitHubOwner != "" {
+			args = append(args, fmt.Sprintf("-report-github-owner %s", reportGitHubOwner))
+		}
+		if reportGitHubRepo != "" {
+			args = append(args, fmt.Sprintf("-report-github-repo %s", reportGitHubRepo))
+		}
+		if reportGitHubBranch != "" {
+			args = append(args, fmt.Sprintf("-report-github-branch %s", reportGitHubBranch))
+		}
+		if reportGitHubPath != "" {
+			args = append(args, fmt.Sprintf("-report-github-path %s", reportGitHubPath))
+		}
+	}
+
+	return args
 }
