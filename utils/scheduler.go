@@ -1,4 +1,4 @@
-package scheduler
+package utils
 
 import (
 	"bufio"
@@ -8,8 +8,6 @@ import (
 	"runtime"
 	"strings"
 	"time"
-
-	"github.com/XIU2/CloudflareSpeedTest/utils"
 )
 
 const (
@@ -165,7 +163,7 @@ func (tm *TaskManager) createCronTask(name string, schedule string, command stri
 	}
 
 	if hasExisting {
-		utils.Yellow.Printf("[定时任务] 已存在同名任务，已替换\n")
+		Green.Printf("[定时任务] 已存在同名任务，已替换\n")
 	}
 
 	newCron.WriteString(cronLine + "\n")
@@ -176,9 +174,9 @@ func (tm *TaskManager) createCronTask(name string, schedule string, command stri
 		return fmt.Errorf("写入 crontab 失败: %w", err)
 	}
 
-	utils.Green.Printf("[定时任务] 成功创建 cron 任务\n")
-	utils.Green.Printf("[定时任务] 调度: %s\n", schedule)
-	utils.Green.Printf("[定时任务] 命令: %s\n", command)
+	Green.Printf("[定时任务] 成功创建 cron 任务\n")
+	Green.Printf("[定时任务] 调度: %s\n", schedule)
+	Green.Printf("[定时任务] 命令: %s\n", command)
 	return nil
 }
 
@@ -210,7 +208,7 @@ func (tm *TaskManager) deleteCronTask(name string) error {
 		return fmt.Errorf("更新 crontab 失败: %w", err)
 	}
 
-	utils.Green.Printf("[定时任务] 成功删除任务: %s\n", name)
+	Green.Printf("[定时任务] 成功删除任务: %s\n", name)
 	return nil
 }
 
@@ -295,7 +293,7 @@ func (tm *TaskManager) createWindowsTask(name string, taskType TaskType, schedul
 		return fmt.Errorf("创建 Windows 任务失败: %w, 输出: %s", err, string(output))
 	}
 
-	utils.Green.Printf("[定时任务] 成功创建 Windows 任务: %s\n", fullName)
+	Green.Printf("[定时任务] 成功创建 Windows 任务: %s\n", fullName)
 	return nil
 }
 
@@ -307,7 +305,7 @@ func (tm *TaskManager) deleteWindowsTask(name string) error {
 		return fmt.Errorf("删除 Windows 任务失败: %w, 输出: %s", err, string(output))
 	}
 
-	utils.Green.Printf("[定时任务] 成功删除任务: %s\n", fullName)
+	Green.Printf("[定时任务] 成功删除任务: %s\n", fullName)
 	return nil
 }
 
@@ -319,7 +317,7 @@ func (tm *TaskManager) enableWindowsTask(name string) error {
 		return fmt.Errorf("启用 Windows 任务失败: %w, 输出: %s", err, string(output))
 	}
 
-	utils.Green.Printf("[定时任务] 成功启用任务: %s\n", fullName)
+	Green.Printf("[定时任务] 成功启用任务: %s\n", fullName)
 	return nil
 }
 
@@ -331,7 +329,7 @@ func (tm *TaskManager) disableWindowsTask(name string) error {
 		return fmt.Errorf("禁用 Windows 任务失败: %w, 输出: %s", err, string(output))
 	}
 
-	utils.Green.Printf("[定时任务] 成功禁用任务: %s\n", fullName)
+	Green.Printf("[定时任务] 成功禁用任务: %s\n", fullName)
 	return nil
 }
 
@@ -356,7 +354,7 @@ func (tm *TaskManager) getWindowsTaskStatus(name string) (string, error) {
 
 func PrintTaskList(tasks []Task) {
 	if len(tasks) == 0 {
-		utils.Yellow.Println("[定时任务] 当前没有已配置的定时任务")
+		Yellow.Println("[定时任务] 当前没有已配置的定时任务")
 		return
 	}
 

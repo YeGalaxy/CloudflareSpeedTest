@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/XIU2/CloudflareSpeedTest/utils"
@@ -53,49 +54,86 @@ func TestDownloadSpeed(ipSet utils.PingDelaySet) (speedSet utils.DownloadSpeedSe
 	if Disable {
 		return utils.DownloadSpeedSet(ipSet)
 	}
-	if len(ipSet) <= 0 { // IP 数组长度(IP数量) 大于 0 时才会继续下载测速
+	if len(ipSet) <= 0 {
 		utils.Yellow.Println("[信息] 延迟测速结果 IP 数量为 0，跳过下载测速。")
 		return
 	}
-	testNum := TestCount                        // 等待下载测速的队列数量 先默认等于 下载测速数量(-dn）
-	if len(ipSet) < TestCount || MinSpeed > 0 { // 如果延迟测速并过滤后的 IP 数组长度(IP数量) 小于 下载测速数量(-dn），（即 -dn 预期数量是不够的），或者指定了 下载测速下限 (-sl) 条件（这就可能要全部下载测速一遍，直到找齐预期数量或测完为止），则 等待下载测速的队列数量 修正为 IP 数量
-		testNum = len(ipSet)
+
+	var filteredSet utils.PingDelaySet
+
+	if HttpingCFColomap != nil && HttpingCFColo != "" {
+		colos := strings.Split(strings.ToUpper(HttpingCFColo), ",")
+		regionMap := make(map[string][]utils.CloudflareIPData)
+		for _, ip := range ipSet {
+			if ip.Colo != "" {
+				regionMap[ip.Colo] = append(regionMap[ip.Colo], ip)
+			}
+		}
+
+		for _, colo := range colos {
+			if ips, ok := regionMap[colo]; ok {
+				count := TestCount
+				if len(ips) < count {
+					count = len(ips)
+				}
+				filteredSet = append(filteredSet, ips[:count]...)
+			}
+		}
+
+		if len(filteredSet) == 0 {
+			utils.Yellow.Println("[信息] 未找到指定地区的可用 IP，跳过下载测速。")
+			return
+		}
+
+		utils.Cyan.Printf("按地区提取数据完成（地区数：%d, 总 IP 数：%d）\n", len(colos), len(filteredSet))
+	} else {
+		filteredSet = ipSet
 	}
-	if testNum < TestCount { // 如果 等待下载测速的队列数量 小于 下载测速数量(-dn），（显然 -dn 预期数量是不够的），所以 下载测速数量(-dn）修正为 等待下载测速的队列数量
+
+	testNum := TestCount
+	if len(filteredSet) < TestCount || MinSpeed > 0 {
+		testNum = len(filteredSet)
+	}
+	if testNum < TestCount {
 		TestCount = testNum
 	}
 
+	var targetCount int
+	if HttpingCFColomap != nil && HttpingCFColo != "" {
+		colos := strings.Split(strings.ToUpper(HttpingCFColo), ",")
+		targetCount = TestCount * len(colos)
+	} else {
+		targetCount = TestCount
+	}
+
 	utils.Cyan.Printf("开始下载测速（下限：%.2f MB/s, 数量：%d, 队列：%d）\n", MinSpeed, TestCount, testNum)
-	// 控制 下载测速进度条 与 延迟测速进度条 长度一致（强迫症）
-	bar_a := len(strconv.Itoa(len(ipSet)))
+	bar_a := len(strconv.Itoa(len(filteredSet)))
 	bar_b := "     "
 	for i := 0; i < bar_a; i++ {
 		bar_b += " "
 	}
-	bar := utils.NewBar(TestCount, bar_b, "")
+	bar := utils.NewBar(targetCount, bar_b, "")
 	for i := 0; i < testNum; i++ {
-		speed, colo := downloadHandler(ipSet[i].IP)
-		ipSet[i].DownloadSpeed = speed
-		if ipSet[i].Colo == "" { // 只有当 Colo 是空的时候，才写入，否则代表之前是 httping 测速并获取过了
-			ipSet[i].Colo = colo
+		speed, colo := downloadHandler(filteredSet[i].IP)
+		filteredSet[i].DownloadSpeed = speed
+		if filteredSet[i].Colo == "" {
+			filteredSet[i].Colo = colo
 		}
-		// 在每个 IP 下载测速后，以 [下载速度下限] 条件过滤结果
 		if speed >= MinSpeed*1024*1024 {
 			bar.Grow(1, "")
-			speedSet = append(speedSet, ipSet[i]) // 高于下载速度下限时，添加到新数组中
-			if len(speedSet) == TestCount {       // 凑够满足条件的 IP 时（下载测速数量 -dn），就跳出循环
+			speedSet = append(speedSet, filteredSet[i])
+			if len(speedSet) == targetCount {
 				break
 			}
 		}
 	}
 	bar.Done()
-	if MinSpeed == 0.00 { // 如果没有指定下载速度下限，则直接返回所有测速数据
-		speedSet = utils.DownloadSpeedSet(ipSet)
-	} else if utils.Debug && len(speedSet) == 0 { // 如果指定了下载速度下限，且是调试模式下，且没有找到任何一个满足条件的 IP 时，返回所有测速数据，供用户查看当前的测速结果，以便适当调低预期测速条件
+	if MinSpeed == 0.00 {
+		speedSet = utils.DownloadSpeedSet(filteredSet)
+	} else if utils.Debug && len(speedSet) == 0 {
 		utils.Yellow.Println("[调试] 没有满足 下载速度下限 条件的 IP，忽略条件返回所有测速数据（方便下次测速时调整条件）。")
-		speedSet = utils.DownloadSpeedSet(ipSet)
+		speedSet = utils.DownloadSpeedSet(filteredSet)
 	}
-	// 按速度排序
 	sort.Sort(speedSet)
 	return
 }

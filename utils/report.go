@@ -1,4 +1,4 @@
-package report
+package utils
 
 import (
 	"bytes"
@@ -12,8 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/XIU2/CloudflareSpeedTest/utils"
 )
 
 const (
@@ -91,6 +89,13 @@ func ReadResultCSV(filePath string) ([]CloudflareIPResult, error) {
 		delay, _ := strconv.ParseFloat(record[4], 64)
 		speed, _ := strconv.ParseFloat(record[5], 64)
 
+		var coloName string
+		if len(record) >= 8 {
+			coloName = strings.TrimSpace(record[7])
+		} else {
+			coloName = GetAirportCodeName(strings.TrimSpace(record[6]))
+		}
+
 		results = append(results, CloudflareIPResult{
 			IP:       strings.TrimSpace(record[0]),
 			Sended:   record[1],
@@ -99,6 +104,7 @@ func ReadResultCSV(filePath string) ([]CloudflareIPResult, error) {
 			Delay:    delay,
 			Speed:    speed,
 			Colo:     strings.TrimSpace(record[6]),
+			ColoName: coloName,
 		})
 	}
 	return results, nil
@@ -112,13 +118,14 @@ type CloudflareIPResult struct {
 	Delay    float64
 	Speed    float64
 	Colo     string
+	ColoName string
 }
 
 func FormatPreferredIPs(results []CloudflareIPResult, port int) []PreferredIP {
 	ips := make([]PreferredIP, 0, len(results))
 	for _, r := range results {
-		name := fmt.Sprintf("%s-%.2fMB/s", r.Colo, r.Speed)
-		if r.Colo == "" || r.Colo == "N/A" {
+		name := fmt.Sprintf("%s-%.2fMB/s", r.ColoName, r.Speed)
+		if r.ColoName == "" || r.ColoName == "N/A" {
 			name = fmt.Sprintf("%.2fMB/s", r.Speed)
 		}
 		ips = append(ips, PreferredIP{
@@ -133,7 +140,7 @@ func FormatPreferredIPs(results []CloudflareIPResult, port int) []PreferredIP {
 func FormatGitHubContent(results []CloudflareIPResult, port int) string {
 	var lines []string
 	for _, r := range results {
-		region := r.Colo
+		region := r.ColoName
 		if region == "" || region == "N/A" {
 			region = "UNKNOWN"
 		}
@@ -148,7 +155,7 @@ func doRequestWithRetry(method, url string, body io.Reader, headers map[string]s
 	for i := 0; i < maxRetries; i++ {
 		if i > 0 {
 			time.Sleep(retryDelay)
-			utils.Yellow.Printf("[上报] 第 %d 次重试...\n", i)
+			Yellow.Printf("[上报] 第 %d 次重试...\n", i)
 		}
 
 		req, err := http.NewRequest(method, url, body)
@@ -187,8 +194,8 @@ func UploadToCloudflareAPI(cfg *Config, results []CloudflareIPResult, port int) 
 		apiURL = fmt.Sprintf("https://%s/%s%s", cfg.WorkerDomain, cfg.UUID, workerAPIPath)
 	}
 
-	utils.Cyan.Printf("[上报] 正在上传到 Cloudflare Workers API...\n")
-	utils.Cyan.Printf("[上报] API 地址: %s\n", apiURL)
+	Cyan.Printf("[上报] 正在上传到 Cloudflare Workers API...\n")
+	Cyan.Printf("[上报] API 地址: %s\n", apiURL)
 
 	headers := map[string]string{
 		"Content-Type": "application/json",
@@ -203,7 +210,7 @@ func UploadToCloudflareAPI(cfg *Config, results []CloudflareIPResult, port int) 
 	clearBody := bytes.NewBufferString(`{"all": true}`)
 	resp, err = doRequestWithRetry("DELETE", apiURL, clearBody, headers)
 	if err != nil {
-		utils.Yellow.Printf("[上报] 清除现有数据失败: %v，继续上传...\n", err)
+		Yellow.Printf("[上报] 清除现有数据失败: %v，继续上传...\n", err)
 	} else {
 		resp.Body.Close()
 	}
@@ -225,7 +232,7 @@ func UploadToCloudflareAPI(cfg *Config, results []CloudflareIPResult, port int) 
 		return fmt.Errorf("上传失败: HTTP %d, 响应: %s", resp.StatusCode, string(body))
 	}
 
-	utils.Green.Printf("[上报] 成功上传 %d 条优选IP到 Cloudflare Workers API\n", len(preferredIPs))
+	Green.Printf("[上报] 成功上传 %d 条优选IP到 Cloudflare Workers API\n", len(preferredIPs))
 	return nil
 }
 
@@ -233,8 +240,8 @@ func UploadToGitHub(cfg *Config, results []CloudflareIPResult, port int) error {
 	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/contents/%s",
 		cfg.GitHubOwner, cfg.GitHubRepo, cfg.GitHubPath)
 
-	utils.Cyan.Printf("[上报] 正在上传到 GitHub 仓库...\n")
-	utils.Cyan.Printf("[上报] 目标: %s/%s (%s)\n", cfg.GitHubOwner, cfg.GitHubRepo, cfg.GitHubPath)
+	Cyan.Printf("[上报] 正在上传到 GitHub 仓库...\n")
+	Cyan.Printf("[上报] 目标: %s/%s (%s)\n", cfg.GitHubOwner, cfg.GitHubRepo, cfg.GitHubPath)
 
 	content := FormatGitHubContent(results, port)
 	headers := map[string]string{
@@ -245,7 +252,7 @@ func UploadToGitHub(cfg *Config, results []CloudflareIPResult, port int) error {
 
 	resp, err := doRequestWithRetry("GET", apiURL, nil, headers)
 	if err != nil {
-		utils.Yellow.Printf("[上报] 检查文件是否存在失败: %v，尝试直接创建\n", err)
+		Yellow.Printf("[上报] 检查文件是否存在失败: %v，尝试直接创建\n", err)
 	} else {
 		body, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
@@ -273,8 +280,8 @@ func UploadToGitHub(cfg *Config, results []CloudflareIPResult, port int) error {
 
 			rawURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/%s",
 				cfg.GitHubOwner, cfg.GitHubRepo, cfg.GitHubBranch, cfg.GitHubPath)
-			utils.Green.Printf("[上报] 成功更新 GitHub 文件！\n")
-			utils.Green.Printf("[上报] 文件地址: %s\n", rawURL)
+			Green.Printf("[上报] 成功更新 GitHub 文件！\n")
+			Green.Printf("[上报] 文件地址: %s\n", rawURL)
 			return nil
 		}
 	}
@@ -300,8 +307,8 @@ func UploadToGitHub(cfg *Config, results []CloudflareIPResult, port int) error {
 
 	rawURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/%s",
 		cfg.GitHubOwner, cfg.GitHubRepo, cfg.GitHubBranch, cfg.GitHubPath)
-	utils.Green.Printf("[上报] 成功创建 GitHub 文件！\n")
-	utils.Green.Printf("[上报] 文件地址: %s\n", rawURL)
+	Green.Printf("[上报] 成功创建 GitHub 文件！\n")
+	Green.Printf("[上报] 文件地址: %s\n", rawURL)
 	return nil
 }
 

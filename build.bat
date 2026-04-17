@@ -16,8 +16,9 @@ if not exist "Releases\linux_arm64" mkdir "Releases\linux_arm64"
 echo [1/3] Compiling Windows amd64...
 set "GOOS=windows"
 set "GOARCH=amd64"
-set "LDFLAGS=-s -w -X main.version=%version%"
-go build -o "Releases\windows_amd64\cfst.exe" -ldflags "%LDFLAGS%"
+set "CGO_ENABLED=0"
+set "LDFLAGS=-s -w -buildid= -X main.version=%version%"
+go build -trimpath -tags netgo -ldflags "%LDFLAGS%" -o "Releases\windows_amd64\cfst.exe"
 if !errorlevel! neq 0 (
     echo [ERROR] Windows build failed!
     goto :cleanup
@@ -28,8 +29,9 @@ echo.
 echo [2/3] Compiling Linux amd64...
 set "GOOS=linux"
 set "GOARCH=amd64"
-set "LDFLAGS=-s -w -X main.version=%version%"
-go build -o "Releases\linux_amd64\cfst" -ldflags "%LDFLAGS%"
+set "CGO_ENABLED=0"
+set "LDFLAGS=-s -w -buildid= -extldflags '-static' -X main.version=%version%"
+go build -trimpath -tags netgo -ldflags "%LDFLAGS%" -o "Releases\linux_amd64\cfst"
 if !errorlevel! neq 0 (
     echo [ERROR] Linux amd64 build failed!
     goto :cleanup
@@ -40,8 +42,9 @@ echo.
 echo [3/3] Compiling Linux arm64...
 set "GOOS=linux"
 set "GOARCH=arm64"
-set "LDFLAGS=-s -w -X main.version=%version%"
-go build -o "Releases\linux_arm64\cfst" -ldflags "%LDFLAGS%"
+set "CGO_ENABLED=0"
+set "LDFLAGS=-s -w -buildid= -extldflags '-static' -X main.version=%version%"
+go build -trimpath -tags netgo -ldflags "%LDFLAGS%" -o "Releases\linux_arm64\cfst"
 if !errorlevel! neq 0 (
     echo [ERROR] Linux arm64 build failed!
     goto :cleanup
@@ -66,6 +69,7 @@ echo ============================================
 :cleanup
 set "GOOS="
 set "GOARCH="
+set "CGO_ENABLED="
 set "LDFLAGS="
 
 endlocal

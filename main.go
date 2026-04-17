@@ -7,10 +7,9 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"strings"
 	"time"
 
-	"github.com/XIU2/CloudflareSpeedTest/report"
-	"github.com/XIU2/CloudflareSpeedTest/scheduler"
 	"github.com/XIU2/CloudflareSpeedTest/task"
 	"github.com/XIU2/CloudflareSpeedTest/utils"
 )
@@ -94,8 +93,8 @@ https://github.com/XIU2/CloudflareSpeedTest
         调试输出模式；会在一些非预期情况下输出更多日志以便判断原因；(默认 关闭)
 
 结果上报参数：
-    -report cloudflare
-        上报目标；测速完成后上报结果，支持 cloudflare（Workers API）和 github；(默认 空 不上报)
+    -report cloudflare,github
+        上报目标；测速完成后上报结果，支持 cloudflare（Workers API）和 github；多个目标用英文逗号分隔；(默认 空 不上报)
     -report-only
         仅上报模式；跳过测速，直接上报已有的结果文件；(配合 -report 使用)
     -report-file result.csv
@@ -236,6 +235,7 @@ https://github.com/XIU2/CloudflareSpeedTest
 
 func main() {
 	task.InitRandSeed()
+	utils.LoadAirportCodes()
 
 	fmt.Printf("# XIU2/CloudflareSpeedTest %s \n\n", version)
 
@@ -245,7 +245,11 @@ func main() {
 	speedData.Print()
 
 	if reportTarget != "" {
-		handleReport()
+		if len(speedData) > 0 {
+			handleReport()
+		} else {
+			utils.Yellow.Println("[上报] 测速结果 IP 数量为 0，跳过上报。")
+		}
 	}
 
 	endPrint()
@@ -282,7 +286,7 @@ func handleReport() {
 	cfg := buildReportConfig()
 
 	if reportConfigPath != "" {
-		savedCfg, err := report.LoadConfig(reportConfigPath)
+		savedCfg, err := utils.LoadConfig(reportConfigPath)
 		if err == nil {
 			if cfg.WorkerDomain == "" {
 				cfg.WorkerDomain = savedCfg.WorkerDomain
@@ -308,17 +312,27 @@ func handleReport() {
 		}
 	}
 
-	if err := report.SaveConfig(reportConfigPath, cfg); err != nil {
+	if err := utils.SaveConfig(reportConfigPath, cfg); err != nil {
 		utils.Yellow.Printf("[上报] 保存配置文件失败: %v\n", err)
 	}
 
-	if err := report.ReportResults(utils.Output, cfg, reportTarget, task.TCPPort); err != nil {
-		utils.Red.Printf("[上报] 上报失败: %v\n", err)
+	targets := strings.Split(reportTarget, ",")
+	for _, target := range targets {
+		target = strings.TrimSpace(target)
+		if target == "" {
+			continue
+		}
+		utils.Cyan.Printf("[上报] 上报目标: %s\n", target)
+		if err := utils.ReportResults(utils.Output, cfg, target, task.TCPPort); err != nil {
+			utils.Red.Printf("[上报] 上报失败 [%s]: %v\n", target, err)
+		} else {
+			utils.Green.Printf("[上报] 上报成功 [%s]\n", target)
+		}
 	}
 }
 
-func buildReportConfig() *report.Config {
-	return &report.Config{
+func buildReportConfig() *utils.Config {
+	return &utils.Config{
 		WorkerDomain: reportWorkerDomain,
 		UUID:         reportUUID,
 		GitHubToken:  reportGitHubToken,
@@ -353,7 +367,7 @@ func handleReportOnly() {
 	cfg := buildReportConfig()
 
 	if reportConfigPath != "" {
-		savedCfg, err := report.LoadConfig(reportConfigPath)
+		savedCfg, err := utils.LoadConfig(reportConfigPath)
 		if err == nil {
 			if cfg.WorkerDomain == "" {
 				cfg.WorkerDomain = savedCfg.WorkerDomain
@@ -379,26 +393,38 @@ func handleReportOnly() {
 		}
 	}
 
-	if err := report.SaveConfig(reportConfigPath, cfg); err != nil {
+	if err := utils.SaveConfig(reportConfigPath, cfg); err != nil {
 		utils.Yellow.Printf("[上报] 保存配置文件失败: %v\n", err)
 	}
 
-	if err := report.ReportResults(resultPath, cfg, reportTarget, port); err != nil {
-		utils.Red.Printf("[上报] 上报失败: %v\n", err)
+	targets := strings.Split(reportTarget, ",")
+	hasError := false
+	for _, target := range targets {
+		target = strings.TrimSpace(target)
+		if target == "" {
+			continue
+		}
+		utils.Cyan.Printf("[上报] 上报目标: %s\n", target)
+		if err := utils.ReportResults(resultPath, cfg, target, port); err != nil {
+			utils.Red.Printf("[上报] 上报失败 [%s]: %v\n", target, err)
+			hasError = true
+		} else {
+			utils.Green.Printf("[上报] 上报成功 [%s]\n", target)
+		}
+	}
+	if hasError {
 		os.Exit(1)
 	}
-
-	utils.Green.Printf("[上报] 上报完成！\n")
 }
 
 func handleSchedulerList() {
-	tm := scheduler.NewTaskManager()
+	tm := utils.NewTaskManager()
 	tasks := tm.ListTasks()
-	scheduler.PrintTaskList(tasks)
+	utils.PrintTaskList(tasks)
 }
 
 func handleSchedulerDelete() {
-	tm := scheduler.NewTaskManager()
+	tm := utils.NewTaskManager()
 	if err := tm.DeleteTask(schedulerDelete); err != nil {
 		utils.Red.Printf("[定时任务] 删除失败: %v\n", err)
 		os.Exit(1)
@@ -406,21 +432,21 @@ func handleSchedulerDelete() {
 }
 
 func handleSchedulerCron() {
-	tm := scheduler.NewTaskManager()
+	tm := utils.NewTaskManager()
 	taskName := schedulerTaskName
 	if taskName == "" {
 		taskName = fmt.Sprintf("cfst_auto_%d", time.Now().Unix())
 	}
 
-	command := scheduler.BuildFullCommand(buildCurrentArgs())
+	command := utils.BuildFullCommand(buildCurrentArgs())
 
 	if runtime.GOOS == "windows" {
-		if err := tm.CreateTask(taskName, scheduler.TaskTypeDaily, schedulerCron, command); err != nil {
+		if err := tm.CreateTask(taskName, utils.TaskTypeDaily, schedulerCron, command); err != nil {
 			utils.Red.Printf("[定时任务] 创建失败: %v\n", err)
 			os.Exit(1)
 		}
 	} else {
-		if err := tm.CreateTask(taskName, scheduler.TaskTypeCron, schedulerCron, command); err != nil {
+		if err := tm.CreateTask(taskName, utils.TaskTypeCron, schedulerCron, command); err != nil {
 			utils.Red.Printf("[定时任务] 创建失败: %v\n", err)
 			os.Exit(1)
 		}
@@ -428,9 +454,9 @@ func handleSchedulerCron() {
 }
 
 func handleSchedulerInteractive() {
-	tm := scheduler.NewTaskManager()
+	tm := utils.NewTaskManager()
 	tasks := tm.ListTasks()
-	scheduler.PrintTaskList(tasks)
+	utils.PrintTaskList(tasks)
 
 	fmt.Println()
 	fmt.Println("请选择操作：")
@@ -454,7 +480,7 @@ func handleSchedulerInteractive() {
 	}
 }
 
-func createTaskInteractive(tm *scheduler.TaskManager) {
+func createTaskInteractive(tm *utils.TaskManager) {
 	taskName := ""
 	fmt.Print("请输入任务名称: ")
 	fmt.Scanln(&taskName)
@@ -462,7 +488,7 @@ func createTaskInteractive(tm *scheduler.TaskManager) {
 		taskName = fmt.Sprintf("cfst_task_%d", time.Now().Unix())
 	}
 
-	command := scheduler.BuildFullCommand(buildCurrentArgs())
+	command := utils.BuildFullCommand(buildCurrentArgs())
 
 	if runtime.GOOS == "windows" {
 		fmt.Println("请选择调度类型：")
@@ -475,18 +501,18 @@ func createTaskInteractive(tm *scheduler.TaskManager) {
 		fmt.Scanln(&scheduleType)
 
 		var schedule string
-		var taskType scheduler.TaskType
+		var taskType utils.TaskType
 
 		switch scheduleType {
 		case 1:
-			taskType = scheduler.TaskTypeDaily
+			taskType = utils.TaskTypeDaily
 			fmt.Print("请输入执行时间 (HH:MM, 如 02:00): ")
 			fmt.Scanln(&schedule)
 		case 2:
-			taskType = scheduler.TaskTypeHourly
+			taskType = utils.TaskTypeHourly
 			schedule = "01:00"
 		case 3:
-			taskType = scheduler.TaskTypeWeekly
+			taskType = utils.TaskTypeWeekly
 			fmt.Print("请输入星期和时间 (如 MONDAY 02:00): ")
 			fmt.Scanln(&schedule)
 		default:
@@ -507,20 +533,20 @@ func createTaskInteractive(tm *scheduler.TaskManager) {
 		fmt.Print("cron 表达式: ")
 		fmt.Scanln(&cronExpr)
 
-		if err := tm.CreateTask(taskName, scheduler.TaskTypeCron, cronExpr, command); err != nil {
+		if err := tm.CreateTask(taskName, utils.TaskTypeCron, cronExpr, command); err != nil {
 			utils.Red.Printf("[定时任务] 创建失败: %v\n", err)
 		}
 	}
 }
 
-func deleteTaskInteractive(tm *scheduler.TaskManager) {
+func deleteTaskInteractive(tm *utils.TaskManager) {
 	tasks := tm.ListTasks()
 	if len(tasks) == 0 {
 		utils.Yellow.Println("[定时任务] 当前没有可删除的任务")
 		return
 	}
 
-	scheduler.PrintTaskList(tasks)
+	utils.PrintTaskList(tasks)
 
 	var idx int
 	fmt.Print("请输入要删除的任务编号: ")

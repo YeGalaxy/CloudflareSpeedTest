@@ -1,16 +1,61 @@
-cfst-yx/
+# 版本控制
 .git/
 .github/
+
+# IDE 配置
 .vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 构建输出
 dist/
+build/
+out/
+cfst-yx/
 Releases/
-*.exe
-*.csv
-.gitattributes
+
+# 环境配置
+.env
+.env.local
+.env.*.local
+
+# 日志文件
+*.log
+logs/
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# Docker 相关
+docker-compose.yml
+Dockerfile
+
+# 项目文档
+项目结构.md
+重构文档说明.md
 LICENSE
 README.md
-项目结构.md
+CHANGELOG.md
+
+# 构建脚本
 build.bat
-.dockerignore
-Dockerfile
-docker-compose.yml
+build.sh
+
+# 二进制文件
+*.exe
+*.dll
+*.so
+*.dylib
+
+# 数据文件
+*.csv
+*.db
+*.sqlite
+
+# 临时文件
+tmp/
+temp/
+*.tmp
