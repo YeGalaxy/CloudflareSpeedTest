@@ -85,7 +85,7 @@ type CloudflareIPData struct {
 }
 
 // 计算丢包率
-func (cf *CloudflareIPData) getLossRate() float32 {
+func (cf *CloudflareIPData) GetLossRate() float32 {
 	if cf.lossRate == 0 {
 		pingLost := cf.Sended - cf.Received
 		cf.lossRate = float32(pingLost) / float32(cf.Sended)
@@ -98,7 +98,7 @@ func (cf *CloudflareIPData) toString() []string {
 	result[0] = cf.IP.String()
 	result[1] = strconv.Itoa(cf.Sended)
 	result[2] = strconv.Itoa(cf.Received)
-	result[3] = strconv.FormatFloat(float64(cf.getLossRate()), 'f', 2, 32)
+	result[3] = strconv.FormatFloat(float64(cf.GetLossRate()), 'f', 2, 32)
 	result[4] = strconv.FormatFloat(cf.Delay.Seconds()*1000, 'f', 2, 32)
 	result[5] = strconv.FormatFloat(cf.DownloadSpeed/1024/1024, 'f', 2, 32)
 	if cf.Colo == "" {
@@ -125,6 +125,38 @@ func ExportCsv(data []CloudflareIPData) {
 	w := csv.NewWriter(fp)
 	_ = w.Write([]string{"IP 地址", "已发送", "已接收", "丢包率", "平均延迟", "下载速度(MB/s)", "地区码", "地区码名称"})
 	_ = w.WriteAll(convertToString(data))
+	w.Flush()
+}
+
+func ExportPingCsv(data PingDelaySet, output string) {
+	if output == "" || len(data) == 0 {
+		return
+	}
+	fp, err := os.Create(output)
+	if err != nil {
+		log.Fatalf("创建文件[%s]失败：%v", output, err)
+		return
+	}
+	defer fp.Close()
+	fp.Write([]byte{0xEF, 0xBB, 0xBF})
+	w := csv.NewWriter(fp)
+	_ = w.Write([]string{"IP 地址", "已发送", "已接收", "丢包率", "平均延迟", "地区码", "地区码名称"})
+	for _, v := range data {
+		result := make([]string, 7)
+		result[0] = v.IP.String()
+		result[1] = strconv.Itoa(v.Sended)
+		result[2] = strconv.Itoa(v.Received)
+		result[3] = strconv.FormatFloat(float64(v.GetLossRate()), 'f', 2, 32)
+		result[4] = strconv.FormatFloat(v.Delay.Seconds()*1000, 'f', 2, 32)
+		if v.Colo == "" {
+			result[5] = "N/A"
+			result[6] = "N/A"
+		} else {
+			result[5] = v.Colo
+			result[6] = GetAirportCodeName(v.Colo)
+		}
+		_ = w.Write(result)
+	}
 	w.Flush()
 }
 
@@ -165,7 +197,7 @@ func (s PingDelaySet) FilterLossRate() (data PingDelaySet) {
 		return s
 	}
 	for _, v := range s {
-		if v.getLossRate() > InputMaxLossRate { // 丢包几率上限
+		if v.GetLossRate() > InputMaxLossRate { // 丢包几率上限
 			break
 		}
 		data = append(data, v) // 丢包率满足条件时，添加到新数组中
@@ -177,7 +209,7 @@ func (s PingDelaySet) Len() int {
 	return len(s)
 }
 func (s PingDelaySet) Less(i, j int) bool {
-	iRate, jRate := s[i].getLossRate(), s[j].getLossRate()
+	iRate, jRate := s[i].GetLossRate(), s[j].GetLossRate()
 	if iRate != jRate {
 		return iRate < jRate
 	}

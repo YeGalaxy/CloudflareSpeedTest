@@ -105,7 +105,7 @@ func isRoot() bool {
 }
 
 func (tm *TaskManager) listCronTasks() []Task {
-	var tasks []Task
+	tasks := make([]Task, 0)
 
 	cmd := exec.Command("crontab", "-l")
 	output, err := cmd.Output()
@@ -240,7 +240,7 @@ func validateCronSchedule(schedule string) error {
 }
 
 func (tm *TaskManager) listWindowsTasks() []Task {
-	var tasks []Task
+	tasks := make([]Task, 0)
 
 	cmd := exec.Command("schtasks", "/query", "/fo", "csv", "/nh")
 	output, err := cmd.Output()

@@ -72,11 +72,23 @@ func TestDownloadSpeed(ipSet utils.PingDelaySet) (speedSet utils.DownloadSpeedSe
 
 		for _, colo := range colos {
 			if ips, ok := regionMap[colo]; ok {
-				count := TestCount
-				if len(ips) < count {
-					count = len(ips)
+				sort.Slice(ips, func(i, j int) bool {
+					return ips[i].Delay < ips[j].Delay
+				})
+
+				var qualifiedIPs utils.PingDelaySet
+				for _, ip := range ips {
+					if ip.Delay >= utils.InputMinDelay && ip.Delay <= utils.InputMaxDelay && ip.GetLossRate() <= utils.InputMaxLossRate {
+						qualifiedIPs = append(qualifiedIPs, ip)
+						if len(qualifiedIPs) >= TestCount {
+							break
+						}
+					}
 				}
-				filteredSet = append(filteredSet, ips[:count]...)
+
+				if len(qualifiedIPs) > 0 {
+					filteredSet = append(filteredSet, qualifiedIPs...)
+				}
 			}
 		}
 
@@ -90,20 +102,21 @@ func TestDownloadSpeed(ipSet utils.PingDelaySet) (speedSet utils.DownloadSpeedSe
 		filteredSet = ipSet
 	}
 
-	testNum := TestCount
-	if len(filteredSet) < TestCount || MinSpeed > 0 {
-		testNum = len(filteredSet)
-	}
-	if testNum < TestCount {
-		TestCount = testNum
-	}
-
 	var targetCount int
 	if HttpingCFColomap != nil && HttpingCFColo != "" {
-		colos := strings.Split(strings.ToUpper(HttpingCFColo), ",")
-		targetCount = TestCount * len(colos)
+		targetCount = len(filteredSet)
 	} else {
 		targetCount = TestCount
+	}
+
+	testNum := len(filteredSet)
+	if HttpingCFColomap == nil || HttpingCFColo == "" {
+		if MinSpeed == 0 && len(filteredSet) >= TestCount {
+			testNum = TestCount
+		}
+		if testNum < TestCount {
+			TestCount = testNum
+		}
 	}
 
 	utils.Cyan.Printf("开始下载测速（下限：%.2f MB/s, 数量：%d, 队列：%d）\n", MinSpeed, TestCount, testNum)

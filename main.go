@@ -115,8 +115,8 @@ https://github.com/XIU2/CloudflareSpeedTest
         GitHub 分支；(默认 main)
     -report-github-path preferred_ips.txt
         GitHub 文件路径；(默认 preferred_ips.txt)
-    -report-config .cloudflare_speedtest_config.json
-        上报配置文件路径；(默认 .cloudflare_speedtest_config.json)
+    -report-config .cfst_config.json
+        上报配置文件路径；(默认 .cfst_config.json)
 
 定时任务参数：
     -scheduler
@@ -174,7 +174,7 @@ https://github.com/XIU2/CloudflareSpeedTest
 	flag.StringVar(&reportGitHubRepo, "report-github-repo", "", "GitHub 仓库")
 	flag.StringVar(&reportGitHubBranch, "report-github-branch", "main", "GitHub 分支")
 	flag.StringVar(&reportGitHubPath, "report-github-path", "preferred_ips.txt", "GitHub 路径")
-	flag.StringVar(&reportConfigPath, "report-config", ".cloudflare_speedtest_config.json", "上报配置文件")
+	flag.StringVar(&reportConfigPath, "report-config", ".cfst_config.json", "上报配置文件")
 
 	flag.BoolVar(&schedulerMode, "scheduler", false, "设置定时任务")
 	flag.BoolVar(&schedulerList, "scheduler-list", false, "列出定时任务")
@@ -239,7 +239,15 @@ func main() {
 
 	fmt.Printf("# XIU2/CloudflareSpeedTest %s \n\n", version)
 
-	pingData := task.NewPing().Run().FilterDelay().FilterLossRate()
+	pingDataRaw := task.NewPing().Run()
+
+	pingOutput := derivePingOutput(utils.Output)
+	utils.ExportPingCsv(pingDataRaw, pingOutput)
+	if pingOutput != "" && len(pingDataRaw) > 0 {
+		utils.Cyan.Printf("[信息] 延迟测速结果已写入 %s\n", pingOutput)
+	}
+
+	pingData := pingDataRaw.FilterDelay().FilterLossRate()
 	speedData := task.TestDownloadSpeed(pingData)
 	utils.ExportCsv(speedData)
 	speedData.Print()
@@ -626,4 +634,15 @@ func buildCurrentArgs() []string {
 	}
 
 	return args
+}
+
+func derivePingOutput(output string) string {
+	if output == "" {
+		return ""
+	}
+	lastSlash := strings.LastIndex(output, "/")
+	if lastSlash == -1 {
+		return "ping_" + output
+	}
+	return output[:lastSlash+1] + "ping_" + output[lastSlash+1:]
 }

@@ -37,10 +37,21 @@ save_crontab_with_msg() {
 }
 
 # 处理 IP 文件
+# 这段代码用于确定 CloudflareSpeedTest 使用的 IP 文件路径
+# 首先检查数据目录中是否已存在 ip.txt 文件
 if [ -f "${DATA_DIR}/ip.txt" ]; then
+    # 如果存在，直接使用该文件
     CFST_F="${DATA_DIR}/ip.txt"
+    # 确保 ipv6.txt 也被复制（如果数据目录中不存在）
+    if [ ! -f "${DATA_DIR}/ipv6.txt" ] && [ -f "${INPUT_DIR}/ipv6.txt" ]; then
+        cp "${INPUT_DIR}/ipv6.txt" "${DATA_DIR}/ipv6.txt"
+    fi
 elif [ ! -f "${DATA_DIR}/ip.txt" ] && [ -f "${INPUT_DIR}/ip.txt" ]; then
+    # 如果数据目录中不存在，但输入目录中存在
+    # 将输入目录中的 ip.txt 和 ipv6.txt 复制到数据目录，实现持久化
     cp "${INPUT_DIR}/ip.txt" "${DATA_DIR}/ip.txt"
+    cp "${INPUT_DIR}/ipv6.txt" "${DATA_DIR}/ipv6.txt"
+    # 使用复制后的文件路径
     CFST_F="${DATA_DIR}/ip.txt"
 fi
 
@@ -152,7 +163,7 @@ set -- "$@" -o "${OUTPUT_PATH}"
 [ -n "${CFST_CFCOLO}" ] && set -- "$@" -cfcolo "${CFST_CFCOLO}"
 
 # 处理上报参数
-REPORT_CONFIG="${DATA_DIR}/.cloudflare_speedtest_config.json"
+REPORT_CONFIG="${DATA_DIR}/.cfst_config.json"
 HAS_SENSITIVE=false
 
 if [ -n "${_MERGE_REPORT_GITHUB_TOKEN}" ] || [ -n "${_MERGE_REPORT_UUID}" ]; then
@@ -270,6 +281,17 @@ if [ -n "${EFFECTIVE_CRON}" ]; then
     # 如果设置了单次执行模式，先执行一次
     if [ "${CFST_CRON_ONCE}" = "true" ]; then
         echo "[定时任务] 单次执行模式 (CFST_CRON_ONCE=true)，先执行一次测速..."
+        echo ""
+        echo "[测速] 完整执行命令:"
+        echo "------------------------------------------------------------"
+        printf "[测速]   /app/cfst"
+        for arg in "$@"; do
+            printf " %s" "${arg}"
+        done
+        printf "\n"
+        echo "------------------------------------------------------------"
+        echo ""
+        echo "[测速] 开始执行..."
         echo ""
         "${RUN_SCRIPT}"
         EXIT_CODE=$?

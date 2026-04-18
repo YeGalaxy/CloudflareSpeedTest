@@ -1,15 +1,15 @@
-# Docker 定时任务使用指南
+# Docker 使用指南
 
 本文档介绍如何使用 Docker 运行 CloudflareSpeedTest，并配置持久化的定时任务。
 
-## 核心改进
-
-参考 yx-tools 项目的设计，我们实现了以下功能：
+## 核心特性
 
 1. **Crontab 持久化**：定时任务保存到 `/app/data/crontab` 文件
 2. **容器重启自动恢复**：启动时自动恢复之前配置的定时任务
 3. **容器始终保持运行**：使用 `tail -f /dev/null` 保持容器存活
 4. **定期保存 crontab**：每 5 分钟自动保存一次，防止丢失
+5. **环境变量优先级**：命令行参数 > 环境变量
+6. **数据持久化**：IP 文件和测速结果自动保存到数据目录
 
 ## 快速开始
 
@@ -54,6 +54,47 @@ crontab -e
 - 容器运行完就退出，不占用资源
 - 由宿主机 cron 统一管理
 - 更容易维护和监控
+
+### 方式三：使用 docker-compose（推荐用于生产环境）
+
+```yaml
+# docker-compose.yml
+name: cfst
+services:
+  cfst:
+    image: cfst:latest
+    container_name: cfst
+    env_file:
+      - path: .env
+        required: false
+    restart: unless-stopped
+    volumes:
+      - cfst:/app/data
+    networks:
+      - custom-network
+
+volumes:
+  cfst:
+networks:
+  custom-network:
+    driver: bridge
+```
+
+创建 `.env` 文件：
+```env
+CFST_N=200
+CFST_T=4
+CFST_DN=10
+CFST_CRON="0 2 * * *"
+CFST_REPORT=cloudflare
+CFST_REPORT_WORKER_DOMAIN=example.com
+CFST_REPORT_UUID=your-uuid
+```
+
+启动服务：
+```bash
+docker compose up -d
+```
 
 ## 管理定时任务
 
@@ -112,11 +153,18 @@ docker logs cfst | grep "定时任务"
 | `CFST_URL` | 测速地址 | https://cf.xiu2.xyz/url |
 | `CFST_TL` | 平均延迟上限 | 9999 |
 | `CFST_TLL` | 平均延迟下限 | 0 |
-| `CFST_TLR` | 丢包几率上限 | 1.0 |
+| `CFST_TLR` | 丢包率上限 | 1.0 |
 | `CFST_SL` | 下载速度下限 | 0 |
 | `CFST_P` | 显示结果数量 | 10 |
 | `CFST_F` | IP 段数据文件 | ip.txt |
 | `CFST_O` | 输出结果文件 | result.csv |
+| `CFST_DD` | 禁用下载测速 | false |
+| `CFST_HTTPING` | HTTPing 模式 | false |
+| `CFST_HTTPING_CODE` | HTTP 状态码 | 200 |
+| `CFST_CFCOLO` | Cloudflare 地区 | 空 |
+| `CFST_IP` | 指定 IP 段 | 空 |
+| `CFST_ALLIP` | 测速全部 IP | false |
+| `CFST_DEBUG` | 调试模式 | false |
 
 ### 定时任务参数
 
@@ -130,6 +178,9 @@ docker logs cfst | grep "定时任务"
 | 环境变量 | 说明 |
 |---------|------|
 | `CFST_REPORT` | 上报目标（逗号分隔） |
+| `CFST_REPORT_ONLY` | 仅上报模式 |
+| `CFST_REPORT_FILE` | 上报文件路径 |
+| `CFST_REPORT_PORT` | 上报端口 |
 | `CFST_REPORT_WORKER_DOMAIN` | Cloudflare Workers 域名 |
 | `CFST_REPORT_UUID` | Workers UUID |
 | `CFST_REPORT_GITHUB_TOKEN` | GitHub Token |
@@ -137,6 +188,7 @@ docker logs cfst | grep "定时任务"
 | `CFST_REPORT_GITHUB_REPO` | GitHub 仓库名称 |
 | `CFST_REPORT_GITHUB_BRANCH` | GitHub 分支 |
 | `CFST_REPORT_GITHUB_PATH` | GitHub 文件路径 |
+| `CFST_REPORT_CONFIG` | 上报配置文件路径 |
 
 ## 使用示例
 
@@ -178,6 +230,49 @@ docker run -d --restart=always \
   -v ./cfst_data:/app/data \
   -e CFST_CRON="0 2 * * *" \
   -e CFST_CRON_ONCE="true" \
+  cfst:latest
+```
+
+### 示例 5：测速并上报到 Cloudflare Workers
+
+```bash
+docker run -d --restart=always \
+  --name cfst \
+  -v ./cfst_data:/app/data \
+  -e CFST_CRON="0 2 * * *" \
+  -e CFST_REPORT="cloudflare" \
+  -e CFST_REPORT_WORKER_DOMAIN="example.com" \
+  -e CFST_REPORT_UUID="your-uuid" \
+  cfst:latest
+```
+
+### 示例 6：测速并上报到 GitHub
+
+```bash
+docker run -d --restart=always \
+  --name cfst \
+  -v ./cfst_data:/app/data \
+  -e CFST_CRON="0 2 * * *" \
+  -e CFST_REPORT="github" \
+  -e CFST_REPORT_GITHUB_TOKEN="ghp_xxxx" \
+  -e CFST_REPORT_GITHUB_OWNER="username" \
+  -e CFST_REPORT_GITHUB_REPO="repo" \
+  cfst:latest
+```
+
+### 示例 7：多目标上报
+
+```bash
+docker run -d --restart=always \
+  --name cfst \
+  -v ./cfst_data:/app/data \
+  -e CFST_CRON="0 2 * * *" \
+  -e CFST_REPORT="cloudflare,github" \
+  -e CFST_REPORT_WORKER_DOMAIN="example.com" \
+  -e CFST_REPORT_UUID="your-uuid" \
+  -e CFST_REPORT_GITHUB_TOKEN="ghp_xxxx" \
+  -e CFST_REPORT_GITHUB_OWNER="username" \
+  -e CFST_REPORT_GITHUB_REPO="repo" \
   cfst:latest
 ```
 
@@ -231,6 +326,17 @@ docker rm cfst
 -v ./cfst_data:/app/data
 ```
 
+### Q6: 环境变量和命令行参数冲突时如何处理？
+
+命令行参数优先级高于环境变量。如果同时设置了环境变量和命令行参数，以命令行参数为准。
+
+### Q7: 如何查看容器启动时的配置信息？
+
+容器启动时会打印配置信息摘要：
+```bash
+docker logs cfst | head -20
+```
+
 ## 最佳实践
 
 1. **始终挂载数据目录**：避免数据丢失
@@ -250,6 +356,8 @@ docker rm cfst
    ```
 
 4. **使用宿主机 cron**：如果不想容器一直运行，可以使用宿主机 cron 定期启动容器
+
+5. **使用 docker-compose**：生产环境推荐使用 docker-compose 管理配置
 
 ## 故障排查
 
@@ -285,6 +393,16 @@ docker exec -it cfst ls -lh /app/data/
 
 # 检查文件权限
 ls -lh ./cfst_data/
+```
+
+### 问题 4：上报失败
+
+```bash
+# 检查上报配置
+docker exec -it cfst cat /app/data/.cfst_config.json
+
+# 查看容器日志中的上报信息
+docker logs cfst | grep "上报"
 ```
 
 ## 相关资源
