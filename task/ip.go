@@ -11,26 +11,69 @@ import (
 	"time"
 )
 
-// 默认输入文件名
 const defaultInputFile = "ip.txt"
 
+type IPEntry struct {
+	IP   *net.IPAddr
+	Port int
+	Tag  string
+}
+
+func (e *IPEntry) GetPort() int {
+	if e.Port > 0 {
+		return e.Port
+	}
+	return TCPPort
+}
+
 var (
-	// TestAll 是否测试所有 IP
 	TestAll = false
-	// IPFile IP 段文件名
-	IPFile = defaultInputFile
-	// IPText 从参数传入的 IP 段文本
-	IPText string
+	IPFile  = defaultInputFile
+	IPText  string
 )
 
-// InitRandSeed 初始化随机数种子
 func InitRandSeed() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-// isIPv4 判断是否为 IPv4 地址
 func isIPv4(ip string) bool {
 	return strings.Contains(ip, ".")
+}
+
+func parseIPLine(line string) (ipPart string, port int, tag string) {
+	if idx := strings.IndexByte(line, '#'); idx >= 0 {
+		tag = line[idx+1:]
+		line = line[:idx]
+	}
+	if strings.Contains(line, "]") {
+		if idx := strings.LastIndexByte(line, ':'); idx > strings.IndexByte(line, ']') {
+			if p, err := strconv.Atoi(line[idx+1:]); err == nil {
+				port = p
+				line = line[:idx]
+			}
+		}
+		line = strings.TrimPrefix(line, "[")
+		line = strings.TrimSuffix(line, "]")
+	} else if strings.Contains(line, ".") {
+		cidrIdx := strings.IndexByte(line, '/')
+		if cidrIdx >= 0 {
+			afterCIDR := line[cidrIdx+1:]
+			if colonIdx := strings.IndexByte(afterCIDR, ':'); colonIdx >= 0 {
+				if p, err := strconv.Atoi(afterCIDR[colonIdx+1:]); err == nil {
+					port = p
+					line = line[:cidrIdx] + "/" + afterCIDR[:colonIdx]
+				}
+			}
+		} else {
+			if idx := strings.LastIndexByte(line, ':'); idx >= 0 {
+				if p, err := strconv.Atoi(line[idx+1:]); err == nil {
+					port = p
+					line = line[:idx]
+				}
+			}
+		}
+	}
+	return line, port, tag
 }
 
 // randIPEndWith 生成随机 IP 末尾数字
@@ -42,15 +85,13 @@ func randIPEndWith(num byte) byte {
 	return byte(rand.Intn(int(num)))
 }
 
-// IPRanges IP 段结构体，用于存储和管理 IP 地址范围
 type IPRanges struct {
-	ips     []*net.IPAddr // IP 地址列表
-	mask    string        // 子网掩码
-	firstIP net.IP        // 第一个 IP 地址
-	ipNet   *net.IPNet    // IP 网络
+	ips     []*net.IPAddr
+	mask    string
+	firstIP net.IP
+	ipNet   *net.IPNet
 }
 
-// newIPRanges 创建新的 IPRanges 实例
 func newIPRanges() *IPRanges {
 	return &IPRanges{
 		ips: make([]*net.IPAddr, 0),
@@ -159,24 +200,34 @@ func (r *IPRanges) chooseIPv6() {
 	}
 }
 
-// loadIPRanges 加载 IP 段数据，支持从参数或文件读取
-func loadIPRanges() []*net.IPAddr {
+func loadIPRanges() []IPEntry {
 	ranges := newIPRanges()
-	if IPText != "" { // 从参数中获取 IP 段数据
-		IPs := strings.Split(IPText, ",") // 以逗号分隔为数组并循环遍历
+	entries := make([]IPEntry, 0)
+
+	processLine := func(line string) {
+		ipPart, port, tag := parseIPLine(line)
+		ranges.ips = ranges.ips[:0]
+		ranges.parseCIDR(ipPart)
+		if isIPv4(ipPart) {
+			ranges.chooseIPv4()
+		} else {
+			ranges.chooseIPv6()
+		}
+		for _, ip := range ranges.ips {
+			entries = append(entries, IPEntry{IP: ip, Port: port, Tag: tag})
+		}
+	}
+
+	if IPText != "" {
+		IPs := strings.Split(IPText, ",")
 		for _, IP := range IPs {
-			IP = strings.TrimSpace(IP) // 去除首尾的空白字符（空格、制表符、换行符等）
-			if IP == "" {              // 跳过空的（即开头、结尾或连续多个 ,, 的情况）
+			IP = strings.TrimSpace(IP)
+			if IP == "" {
 				continue
 			}
-			ranges.parseCIDR(IP) // 解析 IP 段，获得 IP、IP 范围、子网掩码
-			if isIPv4(IP) {      // 生成要测速的所有 IPv4 / IPv6 地址（单个/随机/全部）
-				ranges.chooseIPv4()
-			} else {
-				ranges.chooseIPv6()
-			}
+			processLine(IP)
 		}
-	} else { // 从文件中获取 IP 段数据
+	} else {
 		if IPFile == "" {
 			IPFile = defaultInputFile
 		}
@@ -186,18 +237,13 @@ func loadIPRanges() []*net.IPAddr {
 		}
 		defer file.Close()
 		scanner := bufio.NewScanner(file)
-		for scanner.Scan() { // 循环遍历文件每一行
-			line := strings.TrimSpace(scanner.Text()) // 去除首尾的空白字符（空格、制表符、换行符等）
-			if line == "" {                           // 跳过空行
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "" {
 				continue
 			}
-			ranges.parseCIDR(line) // 解析 IP 段，获得 IP、IP 范围、子网掩码
-			if isIPv4(line) {      // 生成要测速的所有 IPv4 / IPv6 地址（单个/随机/全部）
-				ranges.chooseIPv4()
-			} else {
-				ranges.chooseIPv6()
-			}
+			processLine(line)
 		}
 	}
-	return ranges.ips
+	return entries
 }

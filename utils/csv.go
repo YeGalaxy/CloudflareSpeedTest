@@ -72,6 +72,8 @@ func noOutput() bool {
 
 type PingData struct {
 	IP       *net.IPAddr
+	Port     int
+	Tag      string
 	Sended   int
 	Received int
 	Delay    time.Duration
@@ -94,19 +96,25 @@ func (cf *CloudflareIPData) GetLossRate() float32 {
 }
 
 func (cf *CloudflareIPData) toString() []string {
-	result := make([]string, 8)
+	result := make([]string, 10)
 	result[0] = cf.IP.String()
-	result[1] = strconv.Itoa(cf.Sended)
-	result[2] = strconv.Itoa(cf.Received)
-	result[3] = strconv.FormatFloat(float64(cf.GetLossRate()), 'f', 2, 32)
-	result[4] = strconv.FormatFloat(cf.Delay.Seconds()*1000, 'f', 2, 32)
-	result[5] = strconv.FormatFloat(cf.DownloadSpeed/1024/1024, 'f', 2, 32)
+	result[1] = strconv.Itoa(cf.Port)
+	result[2] = strconv.Itoa(cf.Sended)
+	result[3] = strconv.Itoa(cf.Received)
+	result[4] = strconv.FormatFloat(float64(cf.GetLossRate()), 'f', 2, 32)
+	result[5] = strconv.FormatFloat(cf.Delay.Seconds()*1000, 'f', 2, 32)
+	result[6] = strconv.FormatFloat(cf.DownloadSpeed/1024/1024, 'f', 2, 32)
 	if cf.Colo == "" {
-		result[6] = "N/A"
 		result[7] = "N/A"
+		result[8] = "N/A"
 	} else {
-		result[6] = cf.Colo
-		result[7] = GetAirportCodeName(cf.Colo)
+		result[7] = cf.Colo
+		result[8] = GetAirportCodeName(cf.Colo)
+	}
+	if cf.Tag == "" {
+		result[9] = "N/A"
+	} else {
+		result[9] = cf.Tag
 	}
 	return result
 }
@@ -123,7 +131,7 @@ func ExportCsv(data []CloudflareIPData) {
 	defer fp.Close()
 	fp.Write([]byte{0xEF, 0xBB, 0xBF})
 	w := csv.NewWriter(fp)
-	_ = w.Write([]string{"IP 地址", "已发送", "已接收", "丢包率", "平均延迟", "下载速度(MB/s)", "地区码", "地区码名称"})
+	_ = w.Write([]string{"IP 地址", "端口", "已发送", "已接收", "丢包率", "平均延迟", "下载速度(MB/s)", "地区码", "地区码名称", "标签"})
 	_ = w.WriteAll(convertToString(data))
 	w.Flush()
 }
@@ -140,20 +148,26 @@ func ExportPingCsv(data PingDelaySet, output string) {
 	defer fp.Close()
 	fp.Write([]byte{0xEF, 0xBB, 0xBF})
 	w := csv.NewWriter(fp)
-	_ = w.Write([]string{"IP 地址", "已发送", "已接收", "丢包率", "平均延迟", "地区码", "地区码名称"})
+	_ = w.Write([]string{"IP 地址", "端口", "已发送", "已接收", "丢包率", "平均延迟", "地区码", "地区码名称", "标签"})
 	for _, v := range data {
-		result := make([]string, 7)
+		result := make([]string, 9)
 		result[0] = v.IP.String()
-		result[1] = strconv.Itoa(v.Sended)
-		result[2] = strconv.Itoa(v.Received)
-		result[3] = strconv.FormatFloat(float64(v.GetLossRate()), 'f', 2, 32)
-		result[4] = strconv.FormatFloat(v.Delay.Seconds()*1000, 'f', 2, 32)
+		result[1] = strconv.Itoa(v.Port)
+		result[2] = strconv.Itoa(v.Sended)
+		result[3] = strconv.Itoa(v.Received)
+		result[4] = strconv.FormatFloat(float64(v.GetLossRate()), 'f', 2, 32)
+		result[5] = strconv.FormatFloat(v.Delay.Seconds()*1000, 'f', 2, 32)
 		if v.Colo == "" {
-			result[5] = "N/A"
 			result[6] = "N/A"
+			result[7] = "N/A"
 		} else {
-			result[5] = v.Colo
-			result[6] = GetAirportCodeName(v.Colo)
+			result[6] = v.Colo
+			result[7] = GetAirportCodeName(v.Colo)
+		}
+		if v.Tag == "" {
+			result[8] = "N/A"
+		} else {
+			result[8] = v.Tag
 		}
 		_ = w.Write(result)
 	}
@@ -244,18 +258,18 @@ func (s DownloadSpeedSet) Print() {
 	if len(dateString) < PrintNum {  // 如果IP数组长度(IP数量) 小于  打印次数，则次数改为IP数量
 		PrintNum = len(dateString)
 	}
-	headFormat := "%-16s%-5s%-5s%-5s%-6s%-12s%-5s%-8s\n"
-	dataFormat := "%-18s%-8s%-8s%-8s%-10s%-16s%-8s%-10s\n"
+	headFormat := "%-16s%-6s%-5s%-5s%-5s%-6s%-12s%-5s%-8s%-8s\n"
+	dataFormat := "%-18s%-8s%-8s%-8s%-8s%-10s%-16s%-8s%-10s%-10s\n"
 	for i := 0; i < PrintNum; i++ {
 		if len(dateString[i][0]) > 15 {
-			headFormat = "%-40s%-5s%-5s%-5s%-6s%-12s%-5s%-8s\n"
-			dataFormat = "%-42s%-8s%-8s%-8s%-10s%-16s%-8s%-10s\n"
+			headFormat = "%-40s%-6s%-5s%-5s%-5s%-6s%-12s%-5s%-8s%-8s\n"
+			dataFormat = "%-42s%-8s%-8s%-8s%-8s%-10s%-16s%-8s%-10s%-10s\n"
 			break
 		}
 	}
-	Cyan.Printf(headFormat, "IP 地址", "已发送", "已接收", "丢包率", "平均延迟", "下载速度(MB/s)", "地区码", "地区码名称")
+	Cyan.Printf(headFormat, "IP 地址", "端口", "已发送", "已接收", "丢包率", "平均延迟", "下载速度(MB/s)", "地区码", "地区码名称", "标签")
 	for i := 0; i < PrintNum; i++ {
-		fmt.Printf(dataFormat, dateString[i][0], dateString[i][1], dateString[i][2], dateString[i][3], dateString[i][4], dateString[i][5], dateString[i][6], dateString[i][7])
+		fmt.Printf(dataFormat, dateString[i][0], dateString[i][1], dateString[i][2], dateString[i][3], dateString[i][4], dateString[i][5], dateString[i][6], dateString[i][7], dateString[i][8], dateString[i][9])
 	}
 	if !noOutput() {
 		fmt.Printf("\n完整测速结果已写入 %v 文件，可使用记事本/表格软件查看。\n", Output)
