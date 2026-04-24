@@ -36,31 +36,34 @@ save_crontab_with_msg() {
     echo "[定时任务] 定时任务已保存到 $CRONTAB_FILE"
 }
 
-# 处理 IP 文件
-# 这段代码用于确定 CloudflareSpeedTest 使用的 IP 文件路径
-# 首先检查数据目录中是否已存在 ip.txt 文件
-if [ -f "${DATA_DIR}/ip.txt" ]; then
-    # 如果存在，直接使用该文件
-    CFST_F="${DATA_DIR}/ip.txt"
-    # 确保 ipv6.txt 也被复制（如果数据目录中不存在）
-    if [ ! -f "${DATA_DIR}/ipv6.txt" ] && [ -f "${INPUT_DIR}/ipv6.txt" ]; then
-        cp "${INPUT_DIR}/ipv6.txt" "${DATA_DIR}/ipv6.txt"
+_ORIG_CFST_F="${CFST_F:-}"
+
+if [ "${_ORIG_CFST_F}" = "ip.txt" ] || [ -z "${_ORIG_CFST_F}" ]; then
+    if [ -f "${DATA_DIR}/ip.txt" ]; then
+        CFST_F="${DATA_DIR}/ip.txt"
+        if [ ! -f "${DATA_DIR}/ipv6.txt" ] && [ -f "${INPUT_DIR}/ipv6.txt" ]; then
+            cp "${INPUT_DIR}/ipv6.txt" "${DATA_DIR}/ipv6.txt"
+        fi
+    elif [ -f "${INPUT_DIR}/ip.txt" ]; then
+        cp "${INPUT_DIR}/ip.txt" "${DATA_DIR}/ip.txt"
+        [ -f "${INPUT_DIR}/ipv6.txt" ] && cp "${INPUT_DIR}/ipv6.txt" "${DATA_DIR}/ipv6.txt"
+        CFST_F="${DATA_DIR}/ip.txt"
+    else
+        CFST_F="${DATA_DIR}/ip.txt"
     fi
-elif [ ! -f "${DATA_DIR}/ip.txt" ] && [ -f "${INPUT_DIR}/ip.txt" ]; then
-    # 如果数据目录中不存在，但输入目录中存在
-    # 将输入目录中的 ip.txt 和 ipv6.txt 复制到数据目录，实现持久化
-    cp "${INPUT_DIR}/ip.txt" "${DATA_DIR}/ip.txt"
-    cp "${INPUT_DIR}/ipv6.txt" "${DATA_DIR}/ipv6.txt"
-    # 使用复制后的文件路径
-    CFST_F="${DATA_DIR}/ip.txt"
 fi
 
-OUTPUT_PATH="${DATA_DIR}/${CFST_O:-result.csv}"
+_CFST_O="${CFST_O:-result.csv}"
+if [ "${_CFST_O#/}" != "${_CFST_O}" ]; then
+    OUTPUT_PATH="${_CFST_O}"
+else
+    OUTPUT_PATH="${DATA_DIR}/${_CFST_O}"
+fi
 
 # 解析命令行参数
 USER_ARGS=()
 _CLI_REPORT=""
-_CLI_REPORT_ONLY=false
+_CLI_REPORT_ONLY=""
 _CLI_REPORT_FILE=""
 _CLI_REPORT_PORT=""
 _CLI_REPORT_WORKER_DOMAIN=""
@@ -121,20 +124,20 @@ for arg in "$@"; do
 done
 
 # 合并环境变量和命令行参数
-_MERGE_REPORT="${CFST_REPORT:-${_CLI_REPORT}}"
-_MERGE_REPORT_ONLY="${CFST_REPORT_ONLY:-${_CLI_REPORT_ONLY}}"
-_MERGE_REPORT_FILE="${CFST_REPORT_FILE:-${_CLI_REPORT_FILE}}"
-_MERGE_REPORT_PORT="${CFST_REPORT_PORT:-${_CLI_REPORT_PORT}}"
-_MERGE_REPORT_WORKER_DOMAIN="${CFST_REPORT_WORKER_DOMAIN:-${_CLI_REPORT_WORKER_DOMAIN}}"
-_MERGE_REPORT_UUID="${CFST_REPORT_UUID:-${_CLI_REPORT_UUID}}"
-_MERGE_REPORT_GITHUB_TOKEN="${CFST_REPORT_GITHUB_TOKEN:-${_CLI_REPORT_GITHUB_TOKEN}}"
-_MERGE_REPORT_GITHUB_OWNER="${CFST_REPORT_GITHUB_OWNER:-${_CLI_REPORT_GITHUB_OWNER}}"
-_MERGE_REPORT_GITHUB_REPO="${CFST_REPORT_GITHUB_REPO:-${_CLI_REPORT_GITHUB_REPO}}"
-_MERGE_REPORT_GITHUB_BRANCH="${CFST_REPORT_GITHUB_BRANCH:-${_CLI_REPORT_GITHUB_BRANCH}}"
-_MERGE_REPORT_GITHUB_PATH="${CFST_REPORT_GITHUB_PATH:-${_CLI_REPORT_GITHUB_PATH}}"
-_MERGE_REPORT_CONFIG="${CFST_REPORT_CONFIG:-${_CLI_REPORT_CONFIG}}"
-_MERGE_SCHEDULER_TASK_NAME="${CFST_SCHEDULER_TASK_NAME:-${_CLI_SCHEDULER_TASK_NAME}}"
-_MERGE_SCHEDULER_CRON="${CFST_SCHEDULER_CRON:-${_CLI_SCHEDULER_CRON}}"
+_MERGE_REPORT="${_CLI_REPORT:-${CFST_REPORT}}"
+_MERGE_REPORT_ONLY="${_CLI_REPORT_ONLY:-${CFST_REPORT_ONLY}}"
+_MERGE_REPORT_FILE="${_CLI_REPORT_FILE:-${CFST_REPORT_FILE}}"
+_MERGE_REPORT_PORT="${_CLI_REPORT_PORT:-${CFST_REPORT_PORT}}"
+_MERGE_REPORT_WORKER_DOMAIN="${_CLI_REPORT_WORKER_DOMAIN:-${CFST_REPORT_WORKER_DOMAIN}}"
+_MERGE_REPORT_UUID="${_CLI_REPORT_UUID:-${CFST_REPORT_UUID}}"
+_MERGE_REPORT_GITHUB_TOKEN="${_CLI_REPORT_GITHUB_TOKEN:-${CFST_REPORT_GITHUB_TOKEN}}"
+_MERGE_REPORT_GITHUB_OWNER="${_CLI_REPORT_GITHUB_OWNER:-${CFST_REPORT_GITHUB_OWNER}}"
+_MERGE_REPORT_GITHUB_REPO="${_CLI_REPORT_GITHUB_REPO:-${CFST_REPORT_GITHUB_REPO}}"
+_MERGE_REPORT_GITHUB_BRANCH="${_CLI_REPORT_GITHUB_BRANCH:-${CFST_REPORT_GITHUB_BRANCH}}"
+_MERGE_REPORT_GITHUB_PATH="${_CLI_REPORT_GITHUB_PATH:-${CFST_REPORT_GITHUB_PATH}}"
+_MERGE_REPORT_CONFIG="${_CLI_REPORT_CONFIG:-${CFST_REPORT_CONFIG}}"
+_MERGE_SCHEDULER_TASK_NAME="${_CLI_SCHEDULER_TASK_NAME:-${CFST_SCHEDULER_TASK_NAME}}"
+_MERGE_SCHEDULER_CRON="${_CLI_SCHEDULER_CRON:-${CFST_SCHEDULER_CRON}}"
 
 # 构建测速命令参数
 set --
@@ -163,13 +166,6 @@ set -- "$@" -o "${OUTPUT_PATH}"
 [ -n "${CFST_CFCOLO}" ] && set -- "$@" -cfcolo "${CFST_CFCOLO}"
 
 # 处理上报参数
-REPORT_CONFIG="${DATA_DIR}/.cfst_config.json"
-HAS_SENSITIVE=false
-
-if [ -n "${_MERGE_REPORT_GITHUB_TOKEN}" ] || [ -n "${_MERGE_REPORT_UUID}" ]; then
-    HAS_SENSITIVE=true
-fi
-
 if [ -n "${_MERGE_REPORT}" ]; then
     set -- "$@" -report "${_MERGE_REPORT}"
 fi
@@ -177,25 +173,14 @@ fi
 [ -n "${_MERGE_REPORT_FILE}" ] && set -- "$@" -report-file "${_MERGE_REPORT_FILE}"
 [ -n "${_MERGE_REPORT_PORT}" ] && set -- "$@" -report-port "${_MERGE_REPORT_PORT}"
 
-if [ "${HAS_SENSITIVE}" = "true" ]; then
-    [ -n "${_MERGE_REPORT_WORKER_DOMAIN}" ] && set -- "$@" -report-worker-domain "${_MERGE_REPORT_WORKER_DOMAIN}"
-    [ -n "${_MERGE_REPORT_UUID}" ] && set -- "$@" -report-uuid "${_MERGE_REPORT_UUID}"
-    [ -n "${_MERGE_REPORT_GITHUB_TOKEN}" ] && set -- "$@" -report-github-token "${_MERGE_REPORT_GITHUB_TOKEN}"
-    [ -n "${_MERGE_REPORT_GITHUB_OWNER}" ] && set -- "$@" -report-github-owner "${_MERGE_REPORT_GITHUB_OWNER}"
-    [ -n "${_MERGE_REPORT_GITHUB_REPO}" ] && set -- "$@" -report-github-repo "${_MERGE_REPORT_GITHUB_REPO}"
-    [ -n "${_MERGE_REPORT_GITHUB_BRANCH}" ] && set -- "$@" -report-github-branch "${_MERGE_REPORT_GITHUB_BRANCH}"
-    [ -n "${_MERGE_REPORT_GITHUB_PATH}" ] && set -- "$@" -report-github-path "${_MERGE_REPORT_GITHUB_PATH}"
-    set -- "$@" -report-config "${REPORT_CONFIG}"
-else
-    [ -n "${_MERGE_REPORT_WORKER_DOMAIN}" ] && set -- "$@" -report-worker-domain "${_MERGE_REPORT_WORKER_DOMAIN}"
-    [ -n "${_MERGE_REPORT_UUID}" ] && set -- "$@" -report-uuid "${_MERGE_REPORT_UUID}"
-    [ -n "${_MERGE_REPORT_GITHUB_TOKEN}" ] && set -- "$@" -report-github-token "${_MERGE_REPORT_GITHUB_TOKEN}"
-    [ -n "${_MERGE_REPORT_GITHUB_OWNER}" ] && set -- "$@" -report-github-owner "${_MERGE_REPORT_GITHUB_OWNER}"
-    [ -n "${_MERGE_REPORT_GITHUB_REPO}" ] && set -- "$@" -report-github-repo "${_MERGE_REPORT_GITHUB_REPO}"
-    [ -n "${_MERGE_REPORT_GITHUB_BRANCH}" ] && set -- "$@" -report-github-branch "${_MERGE_REPORT_GITHUB_BRANCH}"
-    [ -n "${_MERGE_REPORT_GITHUB_PATH}" ] && set -- "$@" -report-github-path "${_MERGE_REPORT_GITHUB_PATH}"
-    set -- "$@" -report-config "${REPORT_CONFIG}"
-fi
+[ -n "${_MERGE_REPORT_WORKER_DOMAIN}" ] && set -- "$@" -report-worker-domain "${_MERGE_REPORT_WORKER_DOMAIN}"
+[ -n "${_MERGE_REPORT_UUID}" ] && set -- "$@" -report-uuid "${_MERGE_REPORT_UUID}"
+[ -n "${_MERGE_REPORT_GITHUB_TOKEN}" ] && set -- "$@" -report-github-token "${_MERGE_REPORT_GITHUB_TOKEN}"
+[ -n "${_MERGE_REPORT_GITHUB_OWNER}" ] && set -- "$@" -report-github-owner "${_MERGE_REPORT_GITHUB_OWNER}"
+[ -n "${_MERGE_REPORT_GITHUB_REPO}" ] && set -- "$@" -report-github-repo "${_MERGE_REPORT_GITHUB_REPO}"
+[ -n "${_MERGE_REPORT_GITHUB_BRANCH}" ] && set -- "$@" -report-github-branch "${_MERGE_REPORT_GITHUB_BRANCH}"
+[ -n "${_MERGE_REPORT_GITHUB_PATH}" ] && set -- "$@" -report-github-path "${_MERGE_REPORT_GITHUB_PATH}"
+[ -n "${_MERGE_REPORT_CONFIG}" ] && set -- "$@" -report-config "${_MERGE_REPORT_CONFIG}"
 
 # 显示配置信息
 echo "============================================"
@@ -212,8 +197,8 @@ echo " All IP:      ${CFST_ALLIP:-false}"
 if [ -n "${_MERGE_REPORT}" ]; then
 echo " Report:      ${_MERGE_REPORT} (支持逗号分隔多平台)"
 fi
-if [ "${HAS_SENSITIVE}" = "true" ]; then
-echo " Token:       *** (via config file)"
+if [ -n "${_MERGE_REPORT_GITHUB_TOKEN}" ] || [ -n "${_MERGE_REPORT_UUID}" ]; then
+echo " Token:       ***"
 fi
 if [ -n "${CFST_CRON}" ]; then
 echo " Cron:        ${CFST_CRON}"
