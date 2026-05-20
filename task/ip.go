@@ -1,11 +1,9 @@
 package task
 
 import (
-	"bufio"
 	"log"
 	"math/rand"
 	"net"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -231,17 +229,8 @@ func loadIPRanges() []IPEntry {
 		if IPFile == "" {
 			IPFile = defaultInputFile
 		}
-		file, err := os.Open(IPFile)
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer file.Close()
-		scanner := bufio.NewScanner(file)
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if line == "" {
-				continue
-			}
+		lines := LoadIPFile(IPFile)
+		for _, line := range lines {
 			processLine(line)
 		}
 	}

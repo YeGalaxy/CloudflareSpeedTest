@@ -26,7 +26,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 
 FROM alpine:latest
 
-RUN apk add --no-cache bash ca-certificates tzdata procps util-linux-misc \
+RUN apk add --no-cache bash ca-certificates tzdata procps util-linux-misc docker-cli \
     && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
     && echo "Asia/Shanghai" > /etc/timezone
 
@@ -80,6 +80,7 @@ ENV CFST_N=200 \
     CFST_REPORT_GITHUB_PATH="preferred_ips.txt" \
     CFST_CRON="" \
     CFST_CRON_ONCE=false \
+    CFST_MIHOMO_CONTAINER="" \
     TZ="Asia/Shanghai"
 
 COPY --chown=cfst:cfst entrypoint.sh ./

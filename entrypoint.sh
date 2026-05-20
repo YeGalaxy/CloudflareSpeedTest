@@ -36,21 +36,43 @@ save_crontab_with_msg() {
     echo "[定时任务] 定时任务已保存到 $CRONTAB_FILE"
 }
 
+stop_mihomo() {
+    if [ -n "${CFST_MIHOMO_CONTAINER}" ]; then
+        echo "[mihomo] 正在停止 mihomo 容器: ${CFST_MIHOMO_CONTAINER}"
+        if docker stop "${CFST_MIHOMO_CONTAINER}"; then
+            echo "[mihomo] ✓ mihomo 已停止"
+        else
+            echo "[mihomo] ✗ 停止 mihomo 失败，请检查容器名称和 Docker Socket 挂载"
+        fi
+        echo ""
+    fi
+}
+
+start_mihomo() {
+    if [ -n "${CFST_MIHOMO_CONTAINER}" ]; then
+        echo "[mihomo] 正在启动 mihomo 容器: ${CFST_MIHOMO_CONTAINER}"
+        if docker start "${CFST_MIHOMO_CONTAINER}"; then
+            echo "[mihomo] ✓ mihomo 已启动"
+        else
+            echo "[mihomo] ✗ 启动 mihomo 失败，请检查容器名称和 Docker Socket 挂载"
+        fi
+        echo ""
+    fi
+}
+
 _ORIG_CFST_F="${CFST_F:-}"
 
-if [ "${_ORIG_CFST_F}" = "ip.txt" ] || [ -z "${_ORIG_CFST_F}" ]; then
-    if [ -f "${DATA_DIR}/ip.txt" ]; then
-        CFST_F="${DATA_DIR}/ip.txt"
-        if [ ! -f "${DATA_DIR}/ipv6.txt" ] && [ -f "${INPUT_DIR}/ipv6.txt" ]; then
-            cp "${INPUT_DIR}/ipv6.txt" "${DATA_DIR}/ipv6.txt"
-        fi
-    elif [ -f "${INPUT_DIR}/ip.txt" ]; then
-        cp "${INPUT_DIR}/ip.txt" "${DATA_DIR}/ip.txt"
-        [ -f "${INPUT_DIR}/ipv6.txt" ] && cp "${INPUT_DIR}/ipv6.txt" "${DATA_DIR}/ipv6.txt"
-        CFST_F="${DATA_DIR}/ip.txt"
-    else
-        CFST_F="${DATA_DIR}/ip.txt"
+if [ -z "${_ORIG_CFST_F}" ]; then
+    CFST_F="${DATA_DIR}/ip.txt"
+elif [ "${_ORIG_CFST_F#/}" != "${_ORIG_CFST_F}" ]; then
+    CFST_F="${_ORIG_CFST_F}"
+elif [ "${_ORIG_CFST_F#http://}" != "${_ORIG_CFST_F}" ] || [ "${_ORIG_CFST_F#https://}" != "${_ORIG_CFST_F}" ]; then
+    CFST_F="${_ORIG_CFST_F}"
+else
+    if [ -f "${INPUT_DIR}/${_ORIG_CFST_F}" ] && [ ! -f "${DATA_DIR}/${_ORIG_CFST_F}" ]; then
+        cp "${INPUT_DIR}/${_ORIG_CFST_F}" "${DATA_DIR}/${_ORIG_CFST_F}"
     fi
+    CFST_F="${DATA_DIR}/${_ORIG_CFST_F}"
 fi
 
 _CFST_O="${CFST_O:-result.csv}"
@@ -206,6 +228,9 @@ fi
 if [ -n "${_MERGE_SCHEDULER_CRON}" ]; then
 echo " Scheduler:   ${_MERGE_SCHEDULER_CRON}"
 fi
+if [ -n "${CFST_MIHOMO_CONTAINER}" ]; then
+echo " Mihomo:      ${CFST_MIHOMO_CONTAINER} (测速前停止，测速后启动)"
+fi
 echo "============================================"
 echo ""
 
@@ -232,7 +257,16 @@ if [ -n "${EFFECTIVE_CRON}" ]; then
     
     # 创建测速脚本
     RUN_SCRIPT="${DATA_DIR}/run_cfst.sh"
-    printf '#!/bin/sh\ncd /app\nexec /app/cfst' > "${RUN_SCRIPT}"
+    printf '#!/bin/sh\ncd /app\n' > "${RUN_SCRIPT}"
+    if [ -n "${CFST_MIHOMO_CONTAINER}" ]; then
+        printf 'echo "[mihomo] 正在停止 mihomo 容器: %s"\n' "${CFST_MIHOMO_CONTAINER}" >> "${RUN_SCRIPT}"
+        printf 'if docker stop "%s"; then\n' "${CFST_MIHOMO_CONTAINER}" >> "${RUN_SCRIPT}"
+        printf '  echo "[mihomo] ✓ mihomo 已停止"\n' >> "${RUN_SCRIPT}"
+        printf 'else\n' >> "${RUN_SCRIPT}"
+        printf '  echo "[mihomo] ✗ 停止 mihomo 失败"\n' >> "${RUN_SCRIPT}"
+        printf 'fi\n' >> "${RUN_SCRIPT}"
+    fi
+    printf '/app/cfst' >> "${RUN_SCRIPT}"
     for arg in "$@"; do
         printf ' "%s"' "${arg}" >> "${RUN_SCRIPT}"
     done
@@ -242,6 +276,14 @@ if [ -n "${EFFECTIVE_CRON}" ]; then
         done
     fi
     printf '\n' >> "${RUN_SCRIPT}"
+    if [ -n "${CFST_MIHOMO_CONTAINER}" ]; then
+        printf 'echo "[mihomo] 正在启动 mihomo 容器: %s"\n' "${CFST_MIHOMO_CONTAINER}" >> "${RUN_SCRIPT}"
+        printf 'if docker start "%s"; then\n' "${CFST_MIHOMO_CONTAINER}" >> "${RUN_SCRIPT}"
+        printf '  echo "[mihomo] ✓ mihomo 已启动"\n' >> "${RUN_SCRIPT}"
+        printf 'else\n' >> "${RUN_SCRIPT}"
+        printf '  echo "[mihomo] ✗ 启动 mihomo 失败"\n' >> "${RUN_SCRIPT}"
+        printf 'fi\n' >> "${RUN_SCRIPT}"
+    fi
     chmod 700 "${RUN_SCRIPT}"
     
     # 设置定时任务（只写入测速任务，不保留系统默认任务）
@@ -344,6 +386,12 @@ else
     echo "[测速] 开始执行..."
     echo ""
     
+    # 停止 mihomo（测速前）
+    if [ -n "${CFST_MIHOMO_CONTAINER}" ]; then
+        stop_mihomo
+        trap start_mihomo EXIT
+    fi
+
     # 执行测速程序
     if [ "${IS_TTY}" = "false" ]; then
         if command -v script >/dev/null 2>&1 || [ -x /usr/bin/script ]; then
@@ -360,21 +408,41 @@ else
                     CFST_CMD="${CFST_CMD} $(printf '%q' "$arg")"
                 done
             fi
-            exec "${SCRIPT_CMD}" -qfc "${CFST_CMD}" /dev/null
+            if [ -n "${CFST_MIHOMO_CONTAINER}" ]; then
+                "${SCRIPT_CMD}" -qfc "${CFST_CMD}" /dev/null
+            else
+                exec "${SCRIPT_CMD}" -qfc "${CFST_CMD}" /dev/null
+            fi
         else
             echo "[信息] 当前为非交互式终端模式，进度条将使用低频刷新方式显示"
             echo ""
+            if [ -n "${CFST_MIHOMO_CONTAINER}" ]; then
+                if [ ${#USER_ARGS[@]} -gt 0 ]; then
+                    /app/cfst "$@" "${USER_ARGS[@]}"
+                else
+                    /app/cfst "$@"
+                fi
+            else
+                if [ ${#USER_ARGS[@]} -gt 0 ]; then
+                    exec -- /app/cfst "$@" "${USER_ARGS[@]}"
+                else
+                    exec -- /app/cfst "$@"
+                fi
+            fi
+        fi
+    else
+        if [ -n "${CFST_MIHOMO_CONTAINER}" ]; then
+            if [ ${#USER_ARGS[@]} -gt 0 ]; then
+                /app/cfst "$@" "${USER_ARGS[@]}"
+            else
+                /app/cfst "$@"
+            fi
+        else
             if [ ${#USER_ARGS[@]} -gt 0 ]; then
                 exec -- /app/cfst "$@" "${USER_ARGS[@]}"
             else
                 exec -- /app/cfst "$@"
             fi
-        fi
-    else
-        if [ ${#USER_ARGS[@]} -gt 0 ]; then
-            exec -- /app/cfst "$@" "${USER_ARGS[@]}"
-        else
-            exec -- /app/cfst "$@"
         fi
     fi
 fi

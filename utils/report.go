@@ -82,51 +82,72 @@ func ReadResultCSV(filePath string) ([]CloudflareIPResult, error) {
 		if err != nil {
 			continue
 		}
-		if len(record) < 7 {
+		if len(record) < 8 {
 			continue
 		}
 
-		delay, _ := strconv.ParseFloat(record[4], 64)
-		speed, _ := strconv.ParseFloat(record[5], 64)
+		delay, _ := strconv.ParseFloat(record[5], 64)
+		speed, _ := strconv.ParseFloat(record[6], 64)
 
 		var coloName string
-		if len(record) >= 8 {
-			coloName = strings.TrimSpace(record[7])
+		if len(record) >= 9 {
+			coloName = strings.TrimSpace(record[8])
 		} else {
-			coloName = GetAirportCodeName(strings.TrimSpace(record[6]))
+			coloName = GetAirportCodeName(strings.TrimSpace(record[7]))
+		}
+
+		var countryCode string
+		if len(record) >= 10 {
+			countryCode = strings.TrimSpace(record[9])
+		} else {
+			countryCode = GetAirportCountryCode(strings.TrimSpace(record[7]))
+		}
+
+		var countryName string
+		if len(record) >= 11 {
+			countryName = strings.TrimSpace(record[10])
+		} else {
+			countryName = GetAirportCountryName(strings.TrimSpace(record[7]))
 		}
 
 		results = append(results, CloudflareIPResult{
-			IP:       strings.TrimSpace(record[0]),
-			Sended:   record[1],
-			Received: record[2],
-			LossRate: record[3],
-			Delay:    delay,
-			Speed:    speed,
-			Colo:     strings.TrimSpace(record[6]),
-			ColoName: coloName,
+			IP:          strings.TrimSpace(record[0]),
+			Sended:      record[2],
+			Received:    record[3],
+			LossRate:    record[4],
+			Delay:       delay,
+			Speed:       speed,
+			Colo:        strings.TrimSpace(record[7]),
+			ColoName:    coloName,
+			CountryCode: countryCode,
+			CountryName: countryName,
 		})
 	}
 	return results, nil
 }
 
 type CloudflareIPResult struct {
-	IP       string
-	Sended   string
-	Received string
-	LossRate string
-	Delay    float64
-	Speed    float64
-	Colo     string
-	ColoName string
+	IP          string
+	Sended      string
+	Received    string
+	LossRate    string
+	Delay       float64
+	Speed       float64
+	Colo        string
+	ColoName    string
+	CountryCode string
+	CountryName string
 }
 
 func FormatPreferredIPs(results []CloudflareIPResult, port int) []PreferredIP {
 	ips := make([]PreferredIP, 0, len(results))
 	for _, r := range results {
-		name := fmt.Sprintf("%s-%.2fMB/s", r.ColoName, r.Speed)
+		name := fmt.Sprintf("%s-%s-%.2fMB/s", r.CountryCode, r.ColoName, r.Speed)
 		if r.ColoName == "" || r.ColoName == "N/A" {
 			name = fmt.Sprintf("%.2fMB/s", r.Speed)
+		}
+		if (r.CountryCode == "" || r.CountryCode == "N/A") && r.ColoName != "" && r.ColoName != "N/A" {
+			name = fmt.Sprintf("%s-%.2fMB/s", r.ColoName, r.Speed)
 		}
 		ips = append(ips, PreferredIP{
 			IP:   r.IP,
@@ -144,7 +165,11 @@ func FormatGitHubContent(results []CloudflareIPResult, port int) string {
 		if region == "" || region == "N/A" {
 			region = "UNKNOWN"
 		}
-		line := fmt.Sprintf("%s:%d#%s-%.2fMB/s", r.IP, port, region, r.Speed)
+		countryCode := r.CountryCode
+		if countryCode == "" || countryCode == "N/A" {
+			countryCode = "XX"
+		}
+		line := fmt.Sprintf("%s:%d#%s-%s-%.2fMB/s", r.IP, port, countryCode, region, r.Speed)
 		lines = append(lines, line)
 	}
 	return strings.Join(lines, "\n")
