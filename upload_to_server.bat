@@ -10,11 +10,11 @@ setlocal enabledelayedexpansion
 :: ============================================
 
 :: 远程服务器配置
-set REMOTE_HOST=192.168.244.129
+set REMOTE_HOST=
 set REMOTE_PORT=22
-set REMOTE_USER=yx
-set REMOTE_PASSWORD=yx2025!@#
-set REMOTE_PATH=/home/yx/docker/cfst
+set REMOTE_USER=
+set REMOTE_PASSWORD=
+set REMOTE_PATH=
 
 :: 本地项目根目录（脚本所在目录）
 set LOCAL_DIR=%~dp0
