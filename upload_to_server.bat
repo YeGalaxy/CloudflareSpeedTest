@@ -4,17 +4,25 @@ setlocal enabledelayedexpansion
 
 :: ============================================
 :: Docker 文件自动上传脚本
-:: 功能：将Dockerfile及相关文件上传到远程服务器
-:: 版本：2.0.0
-:: 最后更新：2026-04-17
+:: 功能：将 Dockerfile 及相关文件上传到远程服务器
+:: 版本：2.1.0
+:: 最后更新：2026-06-02
 :: ============================================
 
-:: 远程服务器配置
-set REMOTE_HOST=
-set REMOTE_PORT=22
-set REMOTE_USER=
-set REMOTE_PASSWORD=
-set REMOTE_PATH=
+:: 从 .env 文件加载配置
+set ENV_FILE=%~dp0.env
+if not exist "%ENV_FILE%" (
+    echo [ERROR] 未找到 .env 配置文件
+    echo 请复制 .env.example 为 .env 并填写实际配置
+    echo 按任意键退出...
+    pause >nul
+    exit /b 1
+)
+
+call :load_env
+
+:: 远程服务器配置（从 .env 文件加载）
+:: REMOTE_HOST, REMOTE_PORT, REMOTE_USER, REMOTE_PASSWORD, REMOTE_PATH
 
 :: 本地项目根目录（脚本所在目录）
 set LOCAL_DIR=%~dp0
@@ -97,6 +105,15 @@ echo 按任意键退出...
 pause >nul
 
 endlocal
+exit /b 0
+
+:: ============================================
+:: 函数：从 .env 文件加载环境变量
+:: ============================================
+:load_env
+for /f "tokens=* delims=" %%a in ('findstr /v "^#" "%ENV_FILE%" ^| findstr /v "^$"') do (
+    set "%%a"
+)
 exit /b 0
 
 :: ============================================
