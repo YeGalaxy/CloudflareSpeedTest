@@ -34,6 +34,7 @@ func (p *Ping) httping(entry IPEntry) (int, time.Duration, string) {
 			return http.ErrUseLastResponse
 		},
 	}
+	defer hc.CloseIdleConnections()
 
 	// 先访问一次获得 HTTP 状态码 及 地区码
 	var colo string

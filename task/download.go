@@ -206,6 +206,7 @@ func downloadHandler(entry IPEntry) (float64, string) {
 			return nil
 		},
 	}
+	defer client.CloseIdleConnections()
 	req, err := http.NewRequest("GET", URL, nil)
 	if err != nil {
 		if utils.Debug {
