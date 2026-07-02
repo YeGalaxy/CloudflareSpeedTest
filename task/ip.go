@@ -6,15 +6,15 @@ import (
 	"net"
 	"strconv"
 	"strings"
-	"time"
 )
 
 const defaultInputFile = "ip.txt"
 
+// IPEntry 表示一个 IP 条目，包含 IP 地址、端口和标签
 type IPEntry struct {
-	IP   *net.IPAddr
-	Port int
-	Tag  string
+	IP   *net.IPAddr // IP 地址
+	Port int         // 端口号
+	Tag  string      // 标签（用于标识该 IP 的来源或用途）
 }
 
 func (e *IPEntry) GetPort() int {
@@ -29,10 +29,6 @@ var (
 	IPFile  = defaultInputFile
 	IPText  string
 )
-
-func InitRandSeed() {
-	rand.Seed(time.Now().UnixNano())
-}
 
 func isIPv4(ip string) bool {
 	return strings.Contains(ip, ".")

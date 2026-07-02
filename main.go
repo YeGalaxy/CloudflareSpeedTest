@@ -234,7 +234,6 @@ https://github.com/XIU2/CloudflareSpeedTest
 }
 
 func main() {
-	task.InitRandSeed()
 	utils.LoadAirportCodes()
 
 	fmt.Printf("# XIU2/CloudflareSpeedTest %s \n\n", version)
